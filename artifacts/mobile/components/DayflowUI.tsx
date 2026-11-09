@@ -20,12 +20,12 @@ export function Page({ children }: { children: ReactNode }) {
   return (
     <View style={[styles.page, { backgroundColor: colors.background }]}>
       <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
+        contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.pageContent,
           {
-            paddingTop: web ? 83 : Math.max(insets.top, 16),
+            paddingTop: web ? 60 : Math.max(insets.top, 16) + 4,
             paddingBottom: web ? 110 : Math.max(insets.bottom, 24) + 88,
           },
         ]}

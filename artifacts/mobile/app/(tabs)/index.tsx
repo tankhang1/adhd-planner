@@ -1,281 +1,421 @@
-import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Card, Eyebrow, Page, PageTitle, ProgressBar, SectionHeading, Tag } from '@/components/DayflowUI';
-import { useDayflow } from '@/context/DayflowContext';
+import Svg, { Circle } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useDayflow, formatMinutes } from '@/context/DayflowContext';
 import type { DayTask } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
 
-function TaskTimelineRow({
-  task,
-  onToggle,
-}: {
-  task: DayTask;
-  onToggle: () => void;
-}) {
+type Colors = ReturnType<typeof useColors>;
+const PX_PER_MIN = 1.5;
+const MIN_BLOCK = 76;
+
+function inkFor(colors: Colors, tone: DayTask['tone']) {
+  return colors[`${tone}Ink` as const];
+}
+
+function minutesNow(d: Date) {
+  return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+}
+
+/* ------------------------------ Week strip ------------------------------ */
+
+function WeekStrip({ today, selected, onSelect }: { today: Date; selected: number; onSelect: (i: number) => void }) {
   const colors = useColors();
+  const start = new Date(today);
+  start.setDate(today.getDate() - ((today.getDay() + 6) % 7)); // Monday
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
   return (
-    <View style={styles.timelineRow}>
-      <View style={styles.timeColumn}>
-        <Text style={[styles.taskTime, { color: colors.mutedForeground }]}>{task.time}</Text>
+    <View style={styles.week}>
+      {days.map((d, i) => {
+        const isSel = i === selected;
+        const isToday = d.toDateString() === today.toDateString();
+        return (
+          <Pressable
+            key={i}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isSel }}
+            accessibilityLabel={d.toDateString()}
+            onPress={() => onSelect(i)}
+            testID={`week-day-${i}`}
+            style={[styles.weekDay, { backgroundColor: isSel ? colors.primary : 'transparent' }]}
+          >
+            <Text style={[styles.weekDow, { color: isSel ? colors.primaryForeground : colors.mutedForeground }]}>
+              {d.toLocaleDateString('en-US', { weekday: 'narrow' })}
+            </Text>
+            <Text style={[styles.weekNum, { color: isSel ? colors.primaryForeground : colors.foreground }]}>
+              {d.getDate()}
+            </Text>
+            <View
+              style={[
+                styles.weekDot,
+                { backgroundColor: isToday ? (isSel ? colors.primaryForeground : colors.accent) : 'transparent' },
+              ]}
+            />
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/* ------------------------------ Now card -------------------------------- */
+
+function Ring({ progress, color, track, size = 64 }: { progress: number; color: string; track: string; size?: number }) {
+  const stroke = 7;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  return (
+    <Svg width={size} height={size}>
+      <Circle cx={size / 2} cy={size / 2} r={r} stroke={track} strokeWidth={stroke} fill="none" />
+      <Circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        stroke={color}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeDasharray={`${c}`}
+        strokeDashoffset={`${c * (1 - Math.max(0, Math.min(progress, 1)))}`}
+        rotation={-90}
+        origin={`${size / 2}, ${size / 2}`}
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
+function NowCard({ tasks, now }: { tasks: DayTask[]; now: number }) {
+  const colors = useColors();
+  const current = tasks.find((t) => now >= t.start && now < t.start + t.duration);
+  const next = tasks.find((t) => t.start > now && !t.done);
+  const task = current ?? next;
+
+  if (!task) {
+    return (
+      <View style={[styles.nowCard, { backgroundColor: colors.sage }]}>
+        <View style={[styles.nowIcon, { backgroundColor: colors.card }]}>
+          <Feather name="check" size={22} color={colors.sageInk} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.nowEyebrow, { color: colors.sageInk }]}>ALL CLEAR</Text>
+          <Text style={[styles.nowTitle, { color: colors.foreground }]}>Nothing else planned</Text>
+          <Text style={[styles.nowMeta, { color: colors.mutedForeground }]}>Enjoy the free time.</Text>
+        </View>
       </View>
-      <View style={styles.rail}>
-        <View style={[styles.railDot, { backgroundColor: colors[task.tone] }]} />
-        <View style={[styles.railLine, { backgroundColor: colors.border }]} />
+    );
+  }
+
+  const ink = inkFor(colors, task.tone);
+  const isNow = !!current;
+  const remaining = isNow ? Math.ceil(task.start + task.duration - now) : Math.ceil(task.start - now);
+  const progress = isNow ? (now - task.start) / task.duration : 0;
+  const remainingLabel =
+    remaining >= 60 ? `${Math.floor(remaining / 60)}h ${remaining % 60}m` : `${remaining} min`;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${isNow ? 'Now' : 'Up next'}: ${task.title}. Open focus timer.`}
+      onPress={() => router.push({ pathname: '/focus', params: { taskId: task.id } })}
+      testID="now-card"
+      style={({ pressed }) => [styles.nowCard, { backgroundColor: colors[task.tone], opacity: pressed ? 0.9 : 1 }]}
+    >
+      <View style={styles.nowRing}>
+        <Ring progress={progress} color={ink} track="rgba(255,255,255,0.7)" />
+        <View style={styles.nowRingIcon}>
+          <Feather name={task.icon} size={22} color={ink} />
+        </View>
+      </View>
+      <View style={{ flex: 1, gap: 3 }}>
+        <Text style={[styles.nowEyebrow, { color: ink }]}>{isNow ? 'RIGHT NOW' : 'UP NEXT'}</Text>
+        <Text style={[styles.nowTitle, { color: colors.foreground }]} numberOfLines={2}>
+          {task.title}
+        </Text>
+        <Text style={[styles.nowMeta, { color: colors.mutedForeground }]}>
+          {isNow ? `${remainingLabel} left` : `Starts in ${remainingLabel}`}
+        </Text>
+      </View>
+      <View style={[styles.nowPlay, { backgroundColor: ink }]}>
+        <Feather name="play" size={16} color="#FFFFFF" />
+      </View>
+    </Pressable>
+  );
+}
+
+/* ------------------------------ Timeline -------------------------------- */
+
+function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; onToggle: () => void }) {
+  const colors = useColors();
+  const ink = inkFor(colors, task.tone);
+  const height = Math.max(MIN_BLOCK, task.duration * PX_PER_MIN);
+  const active = now >= task.start && now < task.start + task.duration;
+  const past = now >= task.start + task.duration;
+  const fill = active ? (now - task.start) / task.duration : 0;
+
+  return (
+    <View style={styles.row}>
+      <View style={styles.timeCol}>
+        <Text style={[styles.timeText, { color: active ? ink : colors.mutedForeground }]}>
+          {formatMinutes(task.start)}
+        </Text>
       </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${task.done ? 'Mark incomplete' : 'Mark complete'}: ${task.title}`}
-        accessibilityState={{ selected: task.done }}
-        onPress={onToggle}
+        accessibilityLabel={`${task.title}, ${formatMinutes(task.start)}, ${task.duration} minutes. Open focus timer.`}
+        onPress={() => router.push({ pathname: '/focus', params: { taskId: task.id } })}
         testID={`task-${task.id}`}
         style={({ pressed }) => [
-          styles.taskCard,
+          styles.block,
           {
-            backgroundColor: task.done ? colors.muted : colors.card,
-            borderColor: colors.border,
-            opacity: pressed ? 0.78 : 1,
+            minHeight: height,
+            backgroundColor: colors[task.tone],
+            opacity: pressed ? 0.85 : task.done || past ? 0.6 : 1,
+            borderColor: active ? ink : 'transparent',
           },
         ]}
       >
-        <View style={styles.taskTopLine}>
-          <Tag background={colors[task.tone]} foreground={colors.foreground}>{task.label}</Tag>
-          <View style={styles.duration}>
-            <Feather name="clock" size={12} color={colors.mutedForeground} />
-            <Text style={[styles.durationText, { color: colors.mutedForeground }]}>
-              {task.duration} min
-            </Text>
-          </View>
+        {active ? (
+          <View style={[styles.blockFill, { height: `${fill * 100}%`, backgroundColor: ink }]} />
+        ) : null}
+        <View style={[styles.blockIcon, { backgroundColor: colors.card }]}>
+          <Feather name={task.icon} size={18} color={ink} />
         </View>
-        <View style={styles.taskTitleRow}>
+        <View style={styles.blockCopy}>
           <Text
-            style={[
-              styles.taskTitle,
-              { color: colors.foreground },
-              task.done && styles.completedTask,
-            ]}
+            style={[styles.blockTitle, { color: colors.foreground }, task.done && styles.done]}
+            numberOfLines={2}
           >
             {task.title}
           </Text>
-          <Feather
-            name={task.done ? 'check-circle' : 'circle'}
-            size={20}
-            color={task.done ? colors.primary : colors.mutedForeground}
-          />
+          <Text style={[styles.blockMeta, { color: colors.mutedForeground }]}>
+            {formatMinutes(task.start)} – {formatMinutes(task.start + task.duration)} · {task.duration} min
+          </Text>
         </View>
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: task.done }}
+          accessibilityLabel={`${task.done ? 'Mark incomplete' : 'Mark complete'}: ${task.title}`}
+          hitSlop={12}
+          onPress={onToggle}
+          testID={`toggle-${task.id}`}
+          style={[
+            styles.check,
+            { borderColor: ink, backgroundColor: task.done ? ink : colors.card },
+          ]}
+        >
+          {task.done ? <Feather name="check" size={15} color="#FFFFFF" /> : null}
+        </Pressable>
       </Pressable>
     </View>
   );
 }
 
-function NowMarker({ time }: { time: string }) {
+function NowLine({ label }: { label: string }) {
   const colors = useColors();
   return (
-    <View style={styles.timelineRow} accessibilityLabel={`Current time, ${time}`}>
-      <View style={styles.timeColumn}>
-        <Text style={[styles.taskTime, { color: colors.accent }]}>{time}</Text>
+    <View style={styles.nowLineRow} accessibilityLabel={`Current time ${label}`}>
+      <View style={[styles.nowPill, { backgroundColor: colors.accent }]}>
+        <Text style={styles.nowPillText}>{label}</Text>
       </View>
-      <View style={styles.rail}>
-        <View style={[styles.nowDot, { backgroundColor: colors.accent }]} />
-        <View style={[styles.nowLine, { backgroundColor: colors.accent }]} />
-      </View>
-      <View style={styles.nowLabelWrap}>
-        <View style={[styles.nowLabel, { backgroundColor: colors.apricot }]}>
-          <Text style={[styles.nowLabelText, { color: colors.foreground }]}>NOW</Text>
-        </View>
-      </View>
+      <View style={[styles.nowLine, { backgroundColor: colors.accent }]} />
     </View>
   );
 }
 
-function timeValue(value: string) {
-  const [clockPart = '12:00', meridiem = 'AM'] = value.split(' ');
-  const [hourPart = '12', minutePart = '0'] = clockPart.split(':');
-  let hour = Number(hourPart) % 12;
-  if (meridiem === 'PM') hour += 12;
-  return hour * 60 + Number(minutePart);
+function Gap({ minutes }: { minutes: number }) {
+  const colors = useColors();
+  if (minutes < 30) return null;
+  const label = minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60 ? `${minutes % 60}m ` : ''}free` : `${minutes}m free`;
+  return (
+    <View style={styles.gapRow}>
+      <View style={styles.timeCol} />
+      <View style={[styles.gapLine, { borderColor: colors.border }]} />
+      <Text style={[styles.gapText, { color: colors.mutedForeground }]}>{label}</Text>
+    </View>
+  );
 }
+
+/* ------------------------------- Screen --------------------------------- */
 
 export default function TodayScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const web = Platform.OS === 'web';
   const { dayTasks, toggleDayTask } = useDayflow();
   const [clock, setClock] = useState(() => new Date());
-  const completed = dayTasks.filter((task) => task.done).length;
-  const sortedTasks = [...dayTasks].sort((a, b) => timeValue(a.time) - timeValue(b.time));
-  const currentMinutes = clock.getHours() * 60 + clock.getMinutes();
-  const nowIndex = sortedTasks.findIndex((task) => timeValue(task.time) > currentMinutes);
-  const currentTimeLabel = new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(clock);
-  const dateLabel = new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  }).format(clock);
+  const [selectedDay, setSelectedDay] = useState(() => (new Date().getDay() + 6) % 7);
 
   useEffect(() => {
-    const interval = setInterval(() => setClock(new Date()), 60_000);
-    return () => clearInterval(interval);
+    const id = setInterval(() => setClock(new Date()), 30_000);
+    return () => clearInterval(id);
   }, []);
 
-  return (
-    <Page>
-      <View style={styles.topBar}>
-        <View style={styles.brand}>
-          <View style={[styles.brandMark, { backgroundColor: colors.primary }]}>
-            <Feather name="sunrise" size={17} color={colors.primaryForeground} />
-          </View>
-          <Text style={[styles.brandName, { color: colors.foreground }]}>dayflow</Text>
-        </View>
-        <View style={[styles.datePill, { backgroundColor: colors.secondary }]}>
-          <Feather name="calendar" size={14} color={colors.secondaryForeground} />
-          <Text style={[styles.datePillText, { color: colors.secondaryForeground }]}>
-            {dateLabel}
-          </Text>
-        </View>
-      </View>
+  const now = minutesNow(clock);
+  const sorted = useMemo(() => [...dayTasks].sort((a, b) => a.start - b.start), [dayTasks]);
+  const completed = dayTasks.filter((t) => t.done).length;
+  const nowIndex = sorted.findIndex((t) => t.start > now);
+  const hour = clock.getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const nowLabel = clock.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
-      <View style={styles.intro}>
-        <Eyebrow>ONE THING AT A TIME</Eyebrow>
-        <PageTitle>Your day, at your pace.</PageTitle>
-        <Text style={[styles.introCopy, { color: colors.mutedForeground }]}>
-          You don’t have to do it all. Let’s find the next small step.
-        </Text>
-      </View>
+  return (
+    <View style={[styles.page, { backgroundColor: colors.background }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: web ? 60 : Math.max(insets.top, 16) + 4,
+            paddingBottom: web ? 140 : insets.bottom + 150,
+          },
+        ]}
+      >
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.date, { color: colors.mutedForeground }]}>
+              {clock.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </Text>
+            <Text style={[styles.greeting, { color: colors.foreground }]}>{greeting}</Text>
+          </View>
+          <View style={[styles.progressChip, { backgroundColor: colors.secondary }]}>
+            <Feather name="check-circle" size={14} color={colors.secondaryForeground} />
+            <Text style={[styles.progressChipText, { color: colors.secondaryForeground }]}>
+              {completed}/{dayTasks.length}
+            </Text>
+          </View>
+        </View>
+
+        <WeekStrip today={clock} selected={selectedDay} onSelect={setSelectedDay} />
+
+        <NowCard tasks={sorted} now={now} />
+
+        <View style={styles.sectionRow}>
+          <Text style={[styles.section, { color: colors.foreground }]}>Your day</Text>
+          <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>Tap a block to focus</Text>
+        </View>
+
+        <View>
+          {sorted.map((task, i) => {
+            const prev = sorted[i - 1];
+            const gap = prev ? task.start - (prev.start + prev.duration) : 0;
+            return (
+              <React.Fragment key={task.id}>
+                {i > 0 ? <Gap minutes={gap} /> : null}
+                {i === nowIndex ? <NowLine label={nowLabel} /> : null}
+                <TimelineBlock
+                  task={task}
+                  now={now}
+                  onToggle={() => {
+                    void Haptics.selectionAsync();
+                    toggleDayTask(task.id);
+                  }}
+                />
+              </React.Fragment>
+            );
+          })}
+          {sorted.length && nowIndex === -1 ? <NowLine label={nowLabel} /> : null}
+          {!sorted.length ? (
+            <View style={[styles.empty, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Feather name="sun" size={26} color={colors.primary} />
+              <Text style={[styles.section, { color: colors.foreground }]}>An open day</Text>
+              <Text style={{ color: colors.mutedForeground }}>Tap + to add your first activity.</Text>
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Start a 25 minute focus session"
-        onPress={() => router.push('/focus')}
-        testID="start-focus"
+        accessibilityLabel="Add an activity"
+        onPress={() => router.push('/add-task')}
+        testID="add-task"
         style={({ pressed }) => [
-          styles.focusCard,
-          { backgroundColor: colors.forest, opacity: pressed ? 0.9 : 1 },
+          styles.fab,
+          {
+            backgroundColor: colors.primary,
+            bottom: (web ? 84 : 62 + insets.bottom) + 18,
+            opacity: pressed ? 0.85 : 1,
+          },
         ]}
       >
-        <View style={styles.focusCardTop}>
-          <View>
-            <Text style={[styles.focusEyebrow, { color: colors.onForest }]}>A GOOD PLACE TO START</Text>
-            <Text style={[styles.focusTitle, { color: colors.onForest }]}>Review the project brief</Text>
-            <Text style={[styles.focusMeta, { color: colors.onForest }]}>25 minutes · one thing only</Text>
-          </View>
-          <View style={[styles.focusPlay, { backgroundColor: colors.accent }]}>
-            <Feather name="play" size={18} color={colors.accentForeground} />
-          </View>
-        </View>
-        <View style={styles.focusBottom}>
-          <View style={styles.focusProgressTrack}>
-            <View style={[styles.focusProgressFill, { backgroundColor: colors.accent }]} />
-          </View>
-          <Text style={[styles.focusHint, { color: colors.onForest }]}>Start a focus session</Text>
-        </View>
+        <Feather name="plus" size={26} color={colors.primaryForeground} />
       </Pressable>
-
-      <View style={styles.progressBlock}>
-        <View style={styles.progressCopy}>
-          <Text style={[styles.progressTitle, { color: colors.foreground }]}>A little progress</Text>
-          <Text style={[styles.progressCount, { color: colors.mutedForeground }]}>
-            {completed} of {dayTasks.length} planned
-          </Text>
-        </View>
-        <ProgressBar value={dayTasks.length ? completed / dayTasks.length : 0} color={colors.accent} />
-      </View>
-
-      <View style={styles.scheduleHeader}>
-        <SectionHeading
-          title="Today’s flow"
-          subtitle="A flexible plan, not a perfect one."
-        />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open your task inbox"
-          onPress={() => router.push('/(tabs)/inbox')}
-          testID="open-inbox"
-          style={({ pressed }) => [
-            styles.addButton,
-            { backgroundColor: colors.secondary, opacity: pressed ? 0.75 : 1 },
-          ]}
-        >
-          <Feather name="plus" size={18} color={colors.secondaryForeground} />
-        </Pressable>
-      </View>
-
-      {dayTasks.length ? (
-        <View style={styles.timeline}>
-          {sortedTasks.map((task, index) => (
-            <React.Fragment key={task.id}>
-              {index === nowIndex ? <NowMarker time={currentTimeLabel} /> : null}
-              <TaskTimelineRow
-                task={task}
-                onToggle={() => {
-                  void Haptics.selectionAsync();
-                  toggleDayTask(task.id);
-                }}
-              />
-            </React.Fragment>
-          ))}
-          {nowIndex === -1 ? <NowMarker time={currentTimeLabel} /> : null}
-        </View>
-      ) : (
-        <Card style={styles.emptyCard}>
-          <Feather name="sun" size={22} color={colors.primary} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>An open day</Text>
-          <Text style={[styles.introCopy, { color: colors.mutedForeground }]}>
-            Add one small thing when you’re ready.
-          </Text>
-        </Card>
-      )}
-    </Page>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  brandMark: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
-  brandName: { fontSize: 19, fontWeight: '700', letterSpacing: -0.6 },
-  datePill: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11, paddingVertical: 9, borderRadius: 16 },
-  datePillText: { fontSize: 12, fontWeight: '600' },
-  intro: { gap: 8, marginTop: 4 },
-  introCopy: { fontSize: 15, lineHeight: 22, maxWidth: 330 },
-  focusCard: { padding: 19, borderRadius: 25, gap: 22 },
-  focusCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  focusEyebrow: { fontSize: 10, fontWeight: '700', letterSpacing: 1.2, opacity: 0.78, marginBottom: 8 },
-  focusTitle: { fontSize: 18, lineHeight: 23, fontWeight: '700', letterSpacing: -0.35 },
-  focusMeta: { fontSize: 12, marginTop: 5, opacity: 0.82 },
-  focusPlay: { width: 46, height: 46, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  focusBottom: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  focusProgressTrack: { flex: 1, height: 5, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 6 },
-  focusProgressFill: { width: '35%', height: '100%', borderRadius: 6 },
-  focusHint: { fontSize: 11, fontWeight: '600' },
-  progressBlock: { gap: 11 },
-  progressCopy: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  progressTitle: { fontSize: 14, fontWeight: '700' },
-  progressCount: { fontSize: 12 },
-  scheduleHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  addButton: { width: 42, height: 42, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  timeline: { gap: 0 },
-  timelineRow: { flexDirection: 'row', alignItems: 'stretch', minHeight: 106 },
-  timeColumn: { width: 66, paddingTop: 17 },
-  taskTime: { fontSize: 11, fontWeight: '600' },
-  rail: { width: 19, alignItems: 'center', paddingTop: 20 },
-  railDot: { width: 9, height: 9, borderRadius: 5, zIndex: 1 },
-  railLine: { position: 'absolute', top: 28, bottom: -2, width: 1 },
-  nowDot: { width: 9, height: 9, borderRadius: 5, zIndex: 1 },
-  nowLine: { position: 'absolute', top: 28, bottom: -2, width: 2 },
-  nowLabelWrap: { flex: 1, justifyContent: 'center', paddingBottom: 8 },
-  nowLabel: { alignSelf: 'flex-start', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 10 },
-  nowLabelText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
-  taskCard: { flex: 1, minHeight: 92, marginBottom: 12, padding: 13, borderWidth: 1, borderRadius: 19, gap: 10 },
-  taskTopLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  duration: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  durationText: { fontSize: 11, fontWeight: '500' },
-  taskTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 9 },
-  taskTitle: { flex: 1, fontSize: 14, lineHeight: 19, fontWeight: '600' },
-  completedTask: { textDecorationLine: 'line-through', opacity: 0.62 },
-  emptyCard: { alignItems: 'flex-start', gap: 10 },
-  emptyTitle: { fontSize: 18, fontWeight: '700' },
+  page: { flex: 1 },
+  content: { width: '100%', maxWidth: 600, alignSelf: 'center', paddingHorizontal: 20, gap: 20 },
+  header: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
+  date: { fontSize: 13, fontWeight: '600' },
+  greeting: { fontSize: 30, lineHeight: 36, fontWeight: '800', letterSpacing: -0.8, marginTop: 2 },
+  progressChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999 },
+  progressChipText: { fontSize: 13, fontWeight: '700' },
+  week: { flexDirection: 'row', justifyContent: 'space-between' },
+  weekDay: { width: 44, paddingVertical: 9, borderRadius: 16, alignItems: 'center', gap: 4 },
+  weekDow: { fontSize: 12, fontWeight: '600' },
+  weekNum: { fontSize: 17, fontWeight: '700' },
+  weekDot: { width: 5, height: 5, borderRadius: 3 },
+  nowCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 26 },
+  nowRing: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center' },
+  nowRingIcon: { position: 'absolute' },
+  nowIcon: { width: 52, height: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  nowEyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  nowTitle: { fontSize: 18, lineHeight: 23, fontWeight: '700', letterSpacing: -0.3 },
+  nowMeta: { fontSize: 13, fontWeight: '500' },
+  nowPlay: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  sectionRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  section: { fontSize: 20, fontWeight: '800', letterSpacing: -0.4 },
+  sectionHint: { fontSize: 12, fontWeight: '500' },
+  row: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  timeCol: { width: 62, paddingTop: 14 },
+  timeText: { fontSize: 12, fontWeight: '700' },
+  block: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 12,
+    borderRadius: 22,
+    borderWidth: 2,
+    overflow: 'hidden',
+  },
+  blockFill: { position: 'absolute', left: 0, top: 0, width: 5, borderRadius: 3 },
+  blockIcon: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  blockCopy: { flex: 1, gap: 3, paddingTop: 1 },
+  blockTitle: { fontSize: 15, lineHeight: 20, fontWeight: '700' },
+  blockMeta: { fontSize: 12, fontWeight: '500' },
+  done: { textDecorationLine: 'line-through' },
+  check: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
+  nowLineRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  nowPill: { width: 62, paddingVertical: 4, borderRadius: 999, alignItems: 'center' },
+  nowPillText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
+  nowLine: { flex: 1, height: 2, borderRadius: 1, marginLeft: 10 },
+  gapRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, minHeight: 22 },
+  gapLine: { width: 0, height: 22, borderLeftWidth: 2, borderStyle: 'dashed', marginLeft: 18 },
+  gapText: { fontSize: 12, fontWeight: '500' },
+  empty: { alignItems: 'center', gap: 8, padding: 28, borderRadius: 24, borderWidth: 1 },
+  fab: {
+    position: 'absolute',
+    right: 22,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#6C5CE7',
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
 });

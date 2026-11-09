@@ -1,19 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useDayflow } from '@/context/DayflowContext';
 import { Feather } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 
-const SESSION_SECONDS = 25 * 60;
 const RING_SIZE = 260;
-const STROKE = 8;
+const STROKE = 18;
 const RADIUS = (RING_SIZE - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export default function FocusScreen() {
   const colors = useColors();
+  const { taskId } = useLocalSearchParams<{ taskId?: string }>();
+  const { dayTasks, toggleDayTask } = useDayflow();
+  const task = dayTasks.find((t) => t.id === taskId);
+  const SESSION_SECONDS = (task?.duration ?? 25) * 60;
+  const tone = task?.tone ?? 'lilac';
+  const ink = colors[`${tone}Ink` as const];
   const [seconds, setSeconds] = useState(SESSION_SECONDS);
   const [running, setRunning] = useState(false);
   const progress = 1 - seconds / SESSION_SECONDS;
@@ -43,7 +49,7 @@ export default function FocusScreen() {
   };
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.forest }]}>
+    <View style={[styles.screen, { backgroundColor: colors[tone] }]}>
       <View style={styles.topBar}>
         <Pressable
           accessibilityRole="button"
@@ -53,15 +59,15 @@ export default function FocusScreen() {
           testID="close-focus"
           style={({ pressed }) => [styles.closeButton, { opacity: pressed ? 0.68 : 1 }]}
         >
-          <Feather name="x" size={21} color={colors.onForest} />
+          <Feather name="x" size={21} color={colors.foreground} />
         </Pressable>
-        <Text style={[styles.topLabel, { color: colors.onForest }]}>FOCUS TIME</Text>
+        <Text style={[styles.topLabel, { color: colors.foreground }]}>FOCUS TIME</Text>
         <View style={styles.topSpacer} />
       </View>
 
       <View style={styles.center}>
-        <Text style={[styles.prompt, { color: colors.onForest }]}>Just this one thing.</Text>
-        <Text style={[styles.taskName, { color: colors.onForest }]}>Review the project brief</Text>
+        <Text style={[styles.prompt, { color: colors.foreground }]}>Just this one thing.</Text>
+        <Text style={[styles.taskName, { color: colors.foreground }]}>{task?.title ?? 'Focus session'}</Text>
 
         <View style={styles.timerWrap}>
           <Svg width={RING_SIZE} height={RING_SIZE} accessibilityLabel="Focus session progress">
@@ -69,7 +75,7 @@ export default function FocusScreen() {
               cx={RING_SIZE / 2}
               cy={RING_SIZE / 2}
               r={RADIUS}
-              stroke="rgba(255,255,255,0.2)"
+              stroke="rgba(255,255,255,0.75)"
               strokeWidth={STROKE}
               fill="none"
             />
@@ -77,7 +83,7 @@ export default function FocusScreen() {
               cx={RING_SIZE / 2}
               cy={RING_SIZE / 2}
               r={RADIUS}
-              stroke={colors.accent}
+              stroke={ink}
               strokeWidth={STROKE}
               strokeLinecap="round"
               strokeDasharray={`${CIRCUMFERENCE}`}
@@ -90,12 +96,12 @@ export default function FocusScreen() {
           <View style={styles.timerLabel}>
             <Text
               accessibilityLiveRegion="polite"
-              style={[styles.timerText, { color: colors.onForest }]}
+              style={[styles.timerText, { color: colors.foreground }]}
               testID="focus-countdown"
             >
               {timeText}
             </Text>
-            <Text style={[styles.timerCaption, { color: colors.onForest }]}>
+            <Text style={[styles.timerCaption, { color: colors.foreground }]}>
               {running ? 'A little more time' : seconds === 0 ? 'You showed up' : 'Ready when you are'}
             </Text>
           </View>
@@ -109,14 +115,30 @@ export default function FocusScreen() {
           testID="toggle-focus-timer"
           style={({ pressed }) => [
             styles.timerButton,
-            { backgroundColor: colors.accent, opacity: pressed ? 0.82 : 1 },
+            { backgroundColor: ink, opacity: pressed ? 0.82 : 1 },
           ]}
         >
-          <Feather name={running ? 'pause' : 'play'} size={18} color={colors.accentForeground} />
-          <Text style={[styles.timerButtonText, { color: colors.accentForeground }]}>
+          <Feather name={running ? 'pause' : 'play'} size={18} color="#FFFFFF" />
+          <Text style={[styles.timerButtonText, { color: '#FFFFFF' }]}>
             {running ? 'Pause' : seconds === 0 ? 'Start again' : 'Start focus'}
           </Text>
         </Pressable>
+
+        {task ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={task.done ? 'Mark not done' : 'Mark done'}
+            onPress={() => {
+              toggleDayTask(task.id);
+              if (!task.done) router.back();
+            }}
+            testID="focus-done"
+            style={({ pressed }) => [styles.resetButton, { opacity: pressed ? 0.68 : 1 }]}
+          >
+            <Feather name="check-circle" size={15} color={ink} />
+            <Text style={[styles.resetText, { color: ink }]}>{task.done ? 'Mark not done' : 'Mark as done'}</Text>
+          </Pressable>
+        ) : null}
 
         <Pressable
           accessibilityRole="button"
@@ -128,15 +150,15 @@ export default function FocusScreen() {
           testID="reset-focus"
           style={({ pressed }) => [styles.resetButton, { opacity: pressed ? 0.68 : 1 }]}
         >
-          <Feather name="rotate-ccw" size={15} color={colors.onForest} />
-          <Text style={[styles.resetText, { color: colors.onForest }]}>Reset timer</Text>
+          <Feather name="rotate-ccw" size={15} color={colors.foreground} />
+          <Text style={[styles.resetText, { color: colors.foreground }]}>Reset timer</Text>
         </Pressable>
       </View>
 
       <View style={styles.bottom}>
-        <View style={[styles.bottomRule, { backgroundColor: 'rgba(255,255,255,0.18)' }]} />
-        <Feather name="heart" size={15} color={colors.accent} />
-        <Text style={[styles.bottomCopy, { color: colors.onForest }]}>
+        <View style={[styles.bottomRule, { backgroundColor: 'rgba(0,0,0,0.12)' }]} />
+        <Feather name="heart" size={15} color={ink} />
+        <Text style={[styles.bottomCopy, { color: colors.foreground }]}>
           If you drift, you can always begin again.
         </Text>
       </View>

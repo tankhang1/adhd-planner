@@ -1,87 +1,66 @@
 /**
- * Semantic design tokens for the mobile app.
+ * Dayflow design tokens — bright, airy, colorful visual-planner palette.
  *
- * These tokens mirror the naming conventions used in web artifacts (index.css)
- * so that multi-artifact projects share a cohesive visual identity.
- *
- * Replace the placeholder values below with values that match the project's
- * brand. If a sibling web artifact exists, read its index.css and convert the
- * HSL values to hex so both artifacts use the same palette.
- *
- * To add dark mode, add a `dark` key with the same token names.
- * The useColors() hook will automatically pick it up.
+ * Activity tones (sage, apricot, sky, lilac, rose, lemon) are soft pastel
+ * fills for timeline blocks; each has a matching saturated `*Ink` used for
+ * icons, progress and accents on top of that fill.
  */
 
 const playful = {
-  text: '#263832',
-  tint: '#35685D',
-  background: '#F6F4EB',
-  foreground: '#263832',
-  card: '#FFFEFA',
-  cardForeground: '#263832',
-  primary: '#35685D',
-  primaryForeground: '#FFFEFA',
-  secondary: '#E8EEE8',
-  secondaryForeground: '#31544A',
-  muted: '#ECE9E0',
-  mutedForeground: '#65736C',
-  accent: '#E99863',
-  accentForeground: '#34291F',
-  destructive: '#A94F45',
+  text: '#1F1B3A',
+  tint: '#6C5CE7',
+  background: '#FBFAFF',
+  foreground: '#1F1B3A',
+  card: '#FFFFFF',
+  cardForeground: '#1F1B3A',
+  primary: '#6C5CE7',
+  primaryForeground: '#FFFFFF',
+  secondary: '#F0EDFF',
+  secondaryForeground: '#4B3FB8',
+  muted: '#F2F1F7',
+  mutedForeground: '#5E5A78',
+  accent: '#FF8A65',
+  accentForeground: '#FFFFFF',
+  destructive: '#E5484D',
   destructiveForeground: '#FFFFFF',
-  border: '#DDDCD0',
-  input: '#DDDCD0',
-  sage: '#DDE9DC',
-  apricot: '#F7E3D1',
-  sky: '#DFE9E8',
-  lilac: '#EAE2EF',
-  forest: '#213B34',
-  onForest: '#FBF6E8',
+  border: '#ECEAF4',
+  input: '#E4E1F0',
+  // Activity fills
+  sage: '#D9F5E6',
+  apricot: '#FFE4D3',
+  sky: '#D8ECFF',
+  lilac: '#E9E2FF',
+  rose: '#FFDDE6',
+  lemon: '#FFF2C2',
+  // Activity inks (icons / progress on fills)
+  sageInk: '#1E9E62',
+  apricotInk: '#E8692F',
+  skyInk: '#2F7FD8',
+  lilacInk: '#6C5CE7',
+  roseInk: '#E0457B',
+  lemonInk: '#C79100',
+  // Hero surfaces (kept for API compatibility; now bright)
+  forest: '#6C5CE7',
+  onForest: '#FFFFFF',
 };
 
 const focused = {
   ...playful,
-  background: '#F1F2ED',
-  card: '#FAFBF7',
-  primary: '#304E46',
-  secondary: '#E4E9E3',
-  muted: '#E7E9E2',
-  accent: '#D6A46F',
-  border: '#D8DDD4',
-};
-
-const dark = {
-  ...playful,
-  text: '#F3F2E8',
-  tint: '#A4C7B7',
-  background: '#15211D',
-  foreground: '#F3F2E8',
-  card: '#1E2D27',
-  cardForeground: '#F3F2E8',
-  primary: '#A4C7B7',
-  primaryForeground: '#17231E',
-  secondary: '#2A3932',
-  secondaryForeground: '#E5EEE5',
-  muted: '#26352E',
-  mutedForeground: '#B6C2B8',
-  accent: '#F0AE7A',
-  accentForeground: '#2E241D',
-  destructive: '#E28A7E',
-  destructiveForeground: '#281D1B',
-  border: '#39463F',
-  input: '#39463F',
-  sage: '#35483B',
-  apricot: '#4C3A2D',
-  sky: '#2C4140',
-  lilac: '#403747',
-  forest: '#101A16',
-  onForest: '#F3F2E8',
+  background: '#F7F7FA',
+  primary: '#5A4FCF',
+  tint: '#5A4FCF',
+  sage: '#E6F3EC',
+  apricot: '#F9EBE2',
+  sky: '#E5EFF9',
+  lilac: '#EEEAFB',
+  rose: '#F8E7EC',
+  lemon: '#F8F1D9',
+  forest: '#5A4FCF',
 };
 
 const colors = {
   light: playful,
   focused,
-  dark,
   radius: 22,
 };
 

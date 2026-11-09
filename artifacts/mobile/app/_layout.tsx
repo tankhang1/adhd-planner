@@ -29,6 +29,10 @@ function RootLayoutNav() {
         name="focus"
         options={{ headerShown: false, presentation: 'modal' }}
       />
+      <Stack.Screen
+        name="add-task"
+        options={{ headerShown: false, presentation: 'modal' }}
+      />
     </Stack>
   );
 }

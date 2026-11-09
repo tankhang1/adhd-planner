@@ -8,17 +8,44 @@ import React, {
 } from 'react';
 import type { ReactNode } from 'react';
 
-export type TaskTone = 'sage' | 'apricot' | 'sky' | 'lilac';
+export type TaskTone = 'sage' | 'apricot' | 'sky' | 'lilac' | 'rose' | 'lemon';
+export const TASK_TONES: TaskTone[] = ['lilac', 'sky', 'sage', 'apricot', 'rose', 'lemon'];
+export const TASK_ICONS = [
+  'sun', 'coffee', 'book-open', 'briefcase', 'mail', 'phone', 'shopping-cart', 'heart',
+  'activity', 'music', 'home', 'moon', 'edit-3', 'monitor', 'smile', 'star',
+] as const;
+export type TaskIcon = (typeof TASK_ICONS)[number];
+
+/** Minutes since midnight → "9:05 AM" */
+export function formatMinutes(total: number) {
+  if (!Number.isFinite(total)) return '--:--';
+  total = Math.round(total);
+  const h = Math.floor(total / 60) % 24;
+  const m = total % 60;
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return `${hour12}:${m.toString().padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
 export type VisualMode = 'playful' | 'focused';
 
 export interface DayTask {
   id: string;
   title: string;
-  time: string;
+  /** Start time, minutes since midnight */
+  start: number;
   duration: number;
   tone: TaskTone;
+  icon: TaskIcon;
   done: boolean;
   label: string;
+}
+
+export interface NewDayTask {
+  title: string;
+  start: number;
+  duration: number;
+  tone: TaskTone;
+  icon: TaskIcon;
+  label?: string;
 }
 
 export interface InboxTask {
@@ -53,53 +80,54 @@ interface DayflowState {
 interface DayflowContextValue extends DayflowState {
   addInboxTask: (title: string) => void;
   toggleDayTask: (id: string) => void;
+  addDayTask: (task: NewDayTask) => void;
+  removeDayTask: (id: string) => void;
   toggleInboxTask: (id: string) => void;
-  scheduleInboxTask: (id: string) => void;
+  scheduleInboxTask: (id: string, start?: number) => void;
   toggleRoutineStep: (routineId: string, stepId: string) => void;
   setVisualMode: (mode: VisualMode) => void;
   setActiveRoutineId: (id: string | null) => void;
 }
 
-const STORAGE_KEY = 'dayflow-ui-prototype-v1';
+const STORAGE_KEY = 'dayflow-ui-prototype-v3';
+
+/** Upgrade tasks saved by older versions (string `time`, no `icon`). */
+function parseLegacyTime(value: unknown): number {
+  if (typeof value !== 'string') return 9 * 60;
+  const m = value.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (!m) return 9 * 60;
+  let h = Number(m[1]) % 12;
+  if (m[3]?.toUpperCase() === 'PM') h += 12;
+  if (!m[3]) h = Number(m[1]);
+  return h * 60 + Number(m[2]);
+}
+
+function normalizeDayTasks(tasks: unknown): DayTask[] {
+  if (!Array.isArray(tasks)) return [];
+  return tasks.map((raw) => {
+    const t = raw as Partial<DayTask> & { time?: string };
+    return {
+      id: t.id ?? `day-${Math.random().toString(36).slice(2, 9)}`,
+      title: t.title ?? 'Untitled',
+      start: Number.isFinite(t.start) ? (t.start as number) : parseLegacyTime(t.time),
+      duration: Number.isFinite(t.duration) ? (t.duration as number) : 25,
+      tone: TASK_TONES.includes(t.tone as TaskTone) ? (t.tone as TaskTone) : 'lilac',
+      icon: TASK_ICONS.includes(t.icon as TaskIcon) ? (t.icon as TaskIcon) : 'star',
+      done: !!t.done,
+      label: t.label ?? 'Activity',
+    };
+  });
+}
 
 const initialState: DayflowState = {
   dayTasks: [
-    {
-      id: 'day-1',
-      title: 'Ease into the day',
-      time: '9:00 AM',
-      duration: 20,
-      tone: 'sage',
-      done: true,
-      label: 'Routine',
-    },
-    {
-      id: 'day-2',
-      title: 'Review the project brief',
-      time: '10:00 AM',
-      duration: 45,
-      tone: 'apricot',
-      done: false,
-      label: 'Focus time',
-    },
-    {
-      id: 'day-3',
-      title: 'Take a real lunch break',
-      time: '12:30 PM',
-      duration: 40,
-      tone: 'sky',
-      done: false,
-      label: 'Reset',
-    },
-    {
-      id: 'day-4',
-      title: 'Reply to two important emails',
-      time: '2:00 PM',
-      duration: 25,
-      tone: 'lilac',
-      done: false,
-      label: 'Small task',
-    },
+    { id: 'day-1', title: 'Wake up gently', start: 7 * 60 + 30, duration: 30, tone: 'lemon', icon: 'sun', done: true, label: 'Routine' },
+    { id: 'day-2', title: 'Breakfast & meds', start: 8 * 60 + 15, duration: 30, tone: 'apricot', icon: 'coffee', done: false, label: 'Self-care' },
+    { id: 'day-3', title: 'Review the project brief', start: 9 * 60 + 30, duration: 60, tone: 'lilac', icon: 'briefcase', done: false, label: 'Focus time' },
+    { id: 'day-4', title: 'Short walk outside', start: 11 * 60, duration: 20, tone: 'sage', icon: 'activity', done: false, label: 'Reset' },
+    { id: 'day-5', title: 'Lunch break', start: 12 * 60 + 30, duration: 45, tone: 'rose', icon: 'heart', done: false, label: 'Reset' },
+    { id: 'day-6', title: 'Reply to two emails', start: 14 * 60, duration: 25, tone: 'sky', icon: 'mail', done: false, label: 'Small task' },
+    { id: 'day-7', title: 'Wind down', start: 21 * 60, duration: 30, tone: 'lilac', icon: 'moon', done: false, label: 'Routine' },
   ],
   inboxTasks: [
     { id: 'inbox-1', title: 'Book a dentist appointment', done: false },
@@ -151,6 +179,7 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
           setState((current) => ({
             ...current,
             ...parsed,
+            dayTasks: parsed.dayTasks ? normalizeDayTasks(parsed.dayTasks) : current.dayTasks,
             activeRoutineId: null,
           }));
         }
@@ -182,6 +211,7 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
   const value = useMemo<DayflowContextValue>(
     () => ({
       ...state,
+      dayTasks: normalizeDayTasks(state.dayTasks),
       addInboxTask: (title) => {
         const cleanTitle = title.trim();
         if (!cleanTitle) return;
@@ -200,6 +230,28 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
             task.id === id ? { ...task, done: !task.done } : task,
           ),
         })),
+      addDayTask: (task) => {
+        const title = task.title.trim();
+        if (!title) return;
+        setState((current) => ({
+          ...current,
+          dayTasks: [
+            ...current.dayTasks,
+            {
+              ...task,
+              title,
+              id: `day-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              done: false,
+              label: task.label ?? 'Activity',
+            },
+          ],
+        }));
+      },
+      removeDayTask: (id) =>
+        setState((current) => ({
+          ...current,
+          dayTasks: current.dayTasks.filter((task) => task.id !== id),
+        })),
       toggleInboxTask: (id) =>
         setState((current) => ({
           ...current,
@@ -207,11 +259,12 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
             task.id === id ? { ...task, done: !task.done } : task,
           ),
         })),
-      scheduleInboxTask: (id) =>
+      scheduleInboxTask: (id, start) =>
         setState((current) => {
           const item = current.inboxTasks.find((task) => task.id === id);
           if (!item) return current;
-          const tones: TaskTone[] = ['sage', 'apricot', 'sky', 'lilac'];
+          const now = new Date();
+          const nextSlot = Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15;
           return {
             ...current,
             inboxTasks: current.inboxTasks.filter((task) => task.id !== id),
@@ -220,9 +273,10 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
               {
                 id: `day-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
                 title: item.title,
-                time: '3:30 PM',
+                start: start ?? Math.min(nextSlot, 23 * 60),
                 duration: 25,
-                tone: tones[current.dayTasks.length % tones.length],
+                tone: TASK_TONES[current.dayTasks.length % TASK_TONES.length],
+                icon: 'edit-3',
                 done: false,
                 label: 'From your inbox',
               },

@@ -14,8 +14,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // is a system-level appearance provided by iOS and cannot be overridden.
 // Custom brand colors are applied only on the ClassicTabLayout path (older iOS / Android / web).
 function NativeTabLayout() {
+  const colors = useColors();
   return (
-    <NativeTabs>
+    <NativeTabs
+      tintColor={colors.primary}
+      iconColor={{ default: colors.mutedForeground, selected: colors.primary }}
+      labelStyle={{ default: { color: colors.mutedForeground }, selected: { color: colors.primary } }}
+    >
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Icon
           sf={{ default: 'calendar', selected: 'calendar' }}
@@ -83,14 +88,14 @@ function ClassicTabLayout() {
         name="index"
         options={{
           title: 'Today',
-          tabBarIcon: ({ color, focused }) =>
+          tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name={focused ? 'calendar' : 'calendar'} tintColor={color} size={22} />
+              <SymbolView name="calendar" tintColor={color} size={22} />
             ) : (
               <Feather
                 name="calendar"
                 size={22}
-                color={focused ? colors.primary : colors.mutedForeground}
+                color={color as string}
               />
             ),
         }}
@@ -106,7 +111,7 @@ function ClassicTabLayout() {
               <Feather
                 name="sun"
                 size={22}
-                color={focused ? colors.primary : colors.mutedForeground}
+                color={color as string}
               />
             ),
         }}
@@ -122,7 +127,7 @@ function ClassicTabLayout() {
               <Feather
                 name="inbox"
                 size={22}
-                color={colors.mutedForeground}
+                color={color as string}
               />
             ),
         }}
@@ -138,7 +143,7 @@ function ClassicTabLayout() {
               <Feather
                 name="sliders"
                 size={22}
-                color={colors.mutedForeground}
+                color={color as string}
               />
             ),
         }}
