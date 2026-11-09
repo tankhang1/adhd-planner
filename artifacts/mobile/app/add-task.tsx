@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Switch, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { REPEAT_PRESETS, TASK_TONES, formatMinutes, fromDateKey, useDayflow } from '@/context/DayflowContext';
+import { REPEAT_PRESETS, TASK_TONES, formatMinutes, fromDateKey, insightFor, isEssential, todayKey, useDayflow } from '@/context/DayflowContext';
 import type { EditScope } from '@/context/DayflowContext';
 import type { TaskIcon, TaskTone } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
@@ -22,19 +22,27 @@ export default function AddTaskScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { addDayTask, updateDayTask, removeDayTask, dayTasks, selectedDate, seriesFor } = useDayflow();
+  const { addDayTask, updateDayTask, removeDayTask, dayTasks, selectedDate, seriesFor, nextFreeStart, timeLog } = useDayflow();
   const existing = id ? dayTasks.find((t) => t.id === id) : undefined;
   const series = existing ? seriesFor(existing) : undefined;
   const initialDays = series?.days ?? [];
   const [repeatDays, setRepeatDays] = useState<number[]>(initialDays);
   const [title, setTitle] = useState(existing?.title ?? '');
-  const [start, setStart] = useState(existing?.start ?? nextQuarter());
+  const [start, setStart] = useState(() => {
+    if (existing) return existing.start;
+    const day = selectedDate;
+    // Today: first free slot from now. Other days: first free slot from 8 AM.
+    return nextFreeStart(day, day === todayKey() ? nextQuarter() : 8 * 60);
+  });
   const [duration, setDuration] = useState(existing?.duration ?? 25);
   const [tone, setTone] = useState<TaskTone>(existing?.tone ?? 'lilac');
   const [icon, setIcon] = useState<TaskIcon>(existing?.icon ?? 'star');
   const date = existing?.date ?? selectedDate;
   const ink = colors[`${tone}Ink` as const];
   const canSave = title.trim().length > 0;
+  const insight = insightFor(timeLog, title);
+  const [essentialFlag, setEssentialFlag] = useState<boolean>(!!existing?.essential);
+  const autoEssential = isEssential({ icon, essential: false });
 
   const shift = (delta: number) => setStart((s) => Math.max(0, Math.min(s + delta, 23 * 60 + 45)));
 
@@ -47,16 +55,16 @@ export default function AddTaskScreen() {
   /** For repeating tasks, ask whether a change applies to just this day or the whole series. */
   const askScope = (verb: string, onPick: (scope: EditScope) => void) => {
     if (Platform.OS === 'web') return onPick('series');
-    Alert.alert(`${verb} repeating activity`, 'Apply to just this day, or this and all upcoming days?', [
+    Alert.alert(`${verb} repeating activity`, 'Change only this day, or this day and every one after?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Only this day', onPress: () => onPick('one') },
-      { text: 'All upcoming', onPress: () => onPick('series') },
+      { text: 'All future days', onPress: () => onPick('series') },
     ]);
   };
 
   const save = () => {
     if (!canSave) return;
-    const fields = { title, start, duration, tone, icon };
+    const fields = { title, start, duration, tone, icon, essential: essentialFlag };
     if (!existing) {
       addDayTask({ ...fields, date, repeatDays });
       return finish();
@@ -193,6 +201,52 @@ export default function AddTaskScreen() {
               </Pressable>
             );
           })}
+          {!DURATIONS.includes(duration) ? (
+            <View style={[styles.chip, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+              <Text style={[styles.chipText, { color: colors.primaryForeground }]}>{duration}m</Text>
+            </View>
+          ) : null}
+        </View>
+        {insight && Math.abs(insight.typicalActual - duration) >= 5 ? (
+          <View style={[styles.insight, { backgroundColor: colors.secondary }]}>
+            <Feather name="clock" size={16} color={colors.secondaryForeground} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.insightText, { color: colors.foreground }]}>
+                Last {insight.samples} times, this took about {insight.typicalActual} min.
+              </Text>
+              <Text style={[styles.insightSub, { color: colors.mutedForeground }]}>
+                {insight.typicalActual > duration ? 'Giving it more time could make your day feel calmer.' : 'You might need less time than you think.'}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Use ${insight.typicalActual} minutes`}
+              onPress={() => setDuration(insight.typicalActual)}
+              testID="use-insight"
+              style={[styles.insightBtn, { backgroundColor: colors.primary }]}
+            >
+              <Text style={{ color: colors.primaryForeground, fontWeight: '700', fontSize: 13 }}>Use {insight.typicalActual}m</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <View style={[styles.essentialRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.insightText, { color: colors.foreground }]}>Essential</Text>
+            <Text style={[styles.insightSub, { color: colors.mutedForeground }]}>
+              {autoEssential
+                ? 'Meds, food, water and sleep are always kept on low-energy days.'
+                : 'Keep this even on low-energy days.'}
+            </Text>
+          </View>
+          <Switch
+            value={essentialFlag || autoEssential}
+            disabled={autoEssential}
+            onValueChange={setEssentialFlag}
+            trackColor={{ true: colors.primary, false: colors.input }}
+            accessibilityLabel="Essential"
+            testID="toggle-essential"
+          />
         </View>
 
         <Text style={[styles.label, { color: colors.mutedForeground }]}>COLOR</Text>
@@ -246,6 +300,11 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, borderWidth: 1 },
   chipText: { fontSize: 14, fontWeight: '600' },
+  insight: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 18, marginTop: 4 },
+  insightText: { fontSize: 14, fontWeight: '700' },
+  insightSub: { fontSize: 12, marginTop: 2 },
+  insightBtn: { paddingHorizontal: 12, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  essentialRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18, borderWidth: 1, marginTop: 10 },
   weekRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
   dayDot: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   swatch: { width: 44, height: 44, borderRadius: 22, borderWidth: 3 },

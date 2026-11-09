@@ -50,6 +50,10 @@ export interface DayTask {
   label: string;
   /** Moved forward automatically from an earlier day */
   rolledOver?: boolean;
+  /** Kept even on survival days (meds, food, sleep…) */
+  essential?: boolean;
+  /** Parked because of a survival day; restorable */
+  parked?: boolean;
   /** Set when this task is an instance of a repeating series */
   seriesId?: string;
 }
@@ -67,10 +71,12 @@ export interface RecurringTask {
   from: string;
   /** Dates where a single instance was removed */
   skip: string[];
+  essential?: boolean;
 }
 
 export type TaskDraft = Pick<DayTask, 'title' | 'start' | 'duration' | 'tone' | 'icon'> & {
   date?: string;
+  essential?: boolean;
   label?: string;
   /** Weekdays to repeat on (0 = Sunday). Empty/undefined = one-off. */
   repeatDays?: number[];
@@ -86,6 +92,25 @@ export const REPEAT_PRESETS: Array<{ key: string; label: string; days: number[] 
 ];
 
 export const REMINDER_LEADS = [5, 10, 15] as const;
+export const BUFFER_OPTIONS = [0, 5, 10, 15] as const;
+
+export type EnergyLevel = 'low' | 'okay' | 'high';
+export interface EnergyEntry {
+  date: string;
+  level: EnergyLevel;
+  /** The follow-up suggestion was acted on or dismissed — don't show it again */
+  handled?: boolean;
+}
+/** Tasks labelled/iconed like this are kept on survival days. */
+export const ESSENTIAL_ICONS: TaskIcon[] = [
+  'pill', 'cup-water', 'food-apple', 'silverware-fork-knife', 'bed', 'shower-head', 'toothbrush',
+];
+export type BufferMinutes = (typeof BUFFER_OPTIONS)[number];
+
+export { timeKey, insightFor, overallTendency } from '@/services/timeLearning';
+export type { TimeLogEntry, TimeInsight } from '@/services/timeLearning';
+import { timeKey } from '@/services/timeLearning';
+import type { TimeLogEntry } from '@/services/timeLearning';
 export type ReminderLead = (typeof REMINDER_LEADS)[number];
 
 export interface InboxTask {
@@ -142,6 +167,14 @@ interface DayflowState {
   lastOpenDate: string | null;
   /** Days since last open, computed at launch (0 = opened yesterday/today) */
   awayDays: number;
+  /** Breathing room kept between blocks when adding or shifting */
+  bufferMinutes: BufferMinutes;
+  timeLog: TimeLogEntry[];
+  energyLog: EnergyEntry[];
+  /** Dates (YYYY-MM-DD) running in survival mode */
+  survivalDays: string[];
+  /** Last date the morning check-in auto-opened (so it shows once a day) */
+  energyPromptDate: string | null;
 }
 
 interface DayflowContextValue extends DayflowState {
@@ -157,6 +190,25 @@ interface DayflowContextValue extends DayflowState {
   dismissWelcomeBack: () => void;
   setReminderLead: (lead: ReminderLead) => void;
   setQuietHours: (start: number | null, end: number | null) => void;
+  /** Make a task longer; optionally push everything after it later by the same amount. */
+  extendTask: (id: string, minutes: number, shiftRest?: boolean) => void;
+  /** Move every unfinished task starting at/after `fromMinute` on `date` later. */
+  shiftRestOfDay: (date: string, fromMinute: number, minutes: number) => void;
+  setBufferMinutes: (m: BufferMinutes) => void;
+  /** Suggested start for a new task on `date`: right after the last block + buffer. */
+  nextFreeStart: (date: string, notBefore: number) => number;
+  logTime: (task: DayTask, actualMinutes: number) => void;
+  energyFor: (date: string) => EnergyLevel | undefined;
+  setEnergy: (date: string, level: EnergyLevel) => void;
+  energyHandled: (date: string) => boolean;
+  markEnergyPrompted: (date: string) => void;
+  markEnergyHandled: (date: string) => void;
+  isSurvivalDay: (date: string) => boolean;
+  /** Keep only essentials on `date`; everything else is parked (not deleted). */
+  startSurvivalDay: (date: string) => void;
+  endSurvivalDay: (date: string) => void;
+  /** Push non-essential, unfinished tasks on `date` to tomorrow. Returns how many moved. */
+  lightenDay: (date: string, keep: number) => void;
   toggleDayTask: (id: string) => void;
   addInboxTask: (title: string) => void;
   toggleInboxTask: (id: string) => void;
@@ -230,6 +282,8 @@ function normalizeDayTasks(tasks: unknown, fallbackDate: string): DayTask[] {
       done: !!t.done,
       label: t.label ?? 'Activity',
       rolledOver: !!t.rolledOver,
+      essential: !!t.essential,
+      parked: !!t.parked,
       ...(typeof t.seriesId === 'string' ? { seriesId: t.seriesId } : {}),
     };
   });
@@ -267,6 +321,7 @@ function rollOver(tasks: DayTask[], today: string): [DayTask[], number] {
     .filter((t) => !(t.date < today && t.done && daysBetween(t.date, today) > HISTORY_DAYS))
     // a missed repeat instance doesn't follow you — tomorrow brings a fresh one
     .filter((t) => !(t.date < today && !t.done && t.seriesId))
+    .map((t) => (t.parked && t.date < today ? { ...t, parked: false } : t))
     .map((t) => {
       if (t.date < today && !t.done) {
         moved += 1;
@@ -275,6 +330,10 @@ function rollOver(tasks: DayTask[], today: string): [DayTask[], number] {
       return t;
     });
   return [next, moved];
+}
+
+export function isEssential(t: Pick<DayTask, 'essential' | 'icon'>) {
+  return !!t.essential || ESSENTIAL_ICONS.includes(t.icon);
 }
 
 /** Create missing instances of repeating tasks for the given dates. */
@@ -296,6 +355,7 @@ function materialize(tasks: DayTask[], recurring: RecurringTask[], dates: string
         icon: r.icon,
         done: false,
         label: 'Repeats',
+        ...(r.essential ? { essential: true } : {}),
       });
     }
   }
@@ -375,6 +435,11 @@ const initialState: DayflowState = {
   quietEnd: null,
   lastOpenDate: null,
   awayDays: 0,
+  bufferMinutes: 5,
+  timeLog: [],
+  energyLog: [],
+  survivalDays: [],
+  energyPromptDate: null,
 };
 
 /* -------------------------------- Provider ------------------------------- */
@@ -398,6 +463,9 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
           const merged: DayflowState = { ...current, ...parsed, activeRoutineId: null };
           const [tasks, moved] = rollOver(normalizeDayTasks(merged.dayTasks, today), today);
           const recurring = Array.isArray(merged.recurring) ? merged.recurring : [];
+          if (!Array.isArray(merged.timeLog)) merged.timeLog = [];
+          if (!Array.isArray(merged.energyLog)) merged.energyLog = [];
+          if (!Array.isArray(merged.survivalDays)) merged.survivalDays = [];
           const away = merged.lastOpenDate ? Math.max(0, daysBetween(merged.lastOpenDate, today) - 1) : 0;
           return {
             ...merged,
@@ -459,7 +527,7 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
       selectedDate,
       setSelectedDate,
       tasksFor: (date) =>
-        state.dayTasks.filter((t) => t.date === date).sort((a, b) => a.start - b.start),
+        state.dayTasks.filter((t) => t.date === date && !t.parked).sort((a, b) => a.start - b.start),
 
       addDayTask: ({ repeatDays, ...task }) => {
         const title = task.title.trim();
@@ -470,6 +538,7 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
             const series: RecurringTask = {
               id: uid('series'), title, start: task.start, duration: task.duration,
               tone: task.tone, icon: task.icon, days: [...repeatDays].sort(), from: date, skip: [],
+              essential: !!task.essential,
             };
             const recurring = [...s.recurring, series];
             return { ...s, recurring, dayTasks: materialize(s.dayTasks, [series], [date, todayKey()]) };
@@ -556,6 +625,102 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
       dismissWelcomeBack: () => set((s) => ({ ...s, awayDays: 0 })),
       setReminderLead: (reminderLead) => set((s) => ({ ...s, reminderLead })),
       setQuietHours: (quietStart, quietEnd) => set((s) => ({ ...s, quietStart, quietEnd })),
+      extendTask: (id, minutes, shiftRest = true) =>
+        set((s) => {
+          const target = s.dayTasks.find((t) => t.id === id);
+          if (!target) return s;
+          const oldEnd = target.start + target.duration;
+          return {
+            ...s,
+            dayTasks: s.dayTasks.map((t) => {
+              if (t.id === id) return { ...t, duration: t.duration + minutes };
+              if (shiftRest && t.date === target.date && !t.done && t.start >= oldEnd - 1) {
+                return { ...t, start: Math.min(t.start + minutes, 23 * 60 + 55) };
+              }
+              return t;
+            }),
+          };
+        }),
+      shiftRestOfDay: (date, fromMinute, minutes) =>
+        set((s) => ({
+          ...s,
+          dayTasks: s.dayTasks.map((t) =>
+            t.date === date && !t.done && t.start >= fromMinute
+              ? { ...t, start: Math.min(t.start + minutes, 23 * 60 + 55) }
+              : t,
+          ),
+        })),
+      setBufferMinutes: (bufferMinutes) => set((s) => ({ ...s, bufferMinutes })),
+      nextFreeStart: (date, notBefore) => {
+        // Find the first slot at/after notBefore that doesn't land inside a block.
+        let candidate = Math.ceil(notBefore / 5) * 5;
+        const sorted = state.dayTasks.filter((t) => t.date === date).sort((a, b) => a.start - b.start);
+        for (const t of sorted) {
+          if (candidate >= t.start && candidate < t.start + t.duration + state.bufferMinutes) {
+            candidate = Math.ceil((t.start + t.duration + state.bufferMinutes) / 5) * 5;
+          }
+        }
+        return Math.min(candidate, 23 * 60 + 45);
+      },
+      energyFor: (date) => state.energyLog.find((e) => e.date === date)?.level,
+      setEnergy: (date, level) =>
+        set((s) => ({
+          ...s,
+          energyLog: [...s.energyLog.filter((e) => e.date !== date), { date, level }].slice(-120),
+        })),
+      markEnergyPrompted: (date) => set((s) => ({ ...s, energyPromptDate: date })),
+      energyHandled: (date) => !!state.energyLog.find((e) => e.date === date)?.handled,
+      markEnergyHandled: (date) =>
+        set((s) => ({ ...s, energyLog: s.energyLog.map((e) => (e.date === date ? { ...e, handled: true } : e)) })),
+      isSurvivalDay: (date) => state.survivalDays.includes(date),
+      startSurvivalDay: (date) =>
+        set((s) => ({
+          ...s,
+          survivalDays: Array.from(new Set([...s.survivalDays, date])),
+          dayTasks: s.dayTasks.map((t) =>
+            t.date === date && !t.done && !isEssential(t) ? { ...t, parked: true } : t,
+          ),
+        })),
+      endSurvivalDay: (date) =>
+        set((s) => ({
+          ...s,
+          survivalDays: s.survivalDays.filter((d) => d !== date),
+          dayTasks: s.dayTasks.map((t) => (t.date === date && t.parked ? { ...t, parked: false } : t)),
+        })),
+      lightenDay: (date, keep) =>
+        set((s) => {
+          const d = fromDateKey(date);
+          d.setDate(d.getDate() + 1);
+          const tomorrow = toDateKey(d);
+          // Keep essentials plus the first `keep` other unfinished tasks; move the rest.
+          let kept = 0;
+          const sorted = [...s.dayTasks].sort((a, b) => a.start - b.start);
+          const moveIds = new Set<string>();
+          for (const t of sorted) {
+            if (t.date !== date || t.done || t.parked || isEssential(t)) continue;
+            if (kept < keep) kept += 1;
+            else moveIds.add(t.id);
+          }
+          return {
+            ...s,
+            dayTasks: s.dayTasks.map((t) => {
+              if (!moveIds.has(t.id)) return t;
+              // Repeating instances get a fresh copy tomorrow anyway — just park today's.
+              return t.seriesId ? { ...t, parked: true } : { ...t, date: tomorrow, rolledOver: true };
+            }),
+          };
+        }),
+      logTime: (task, actualMinutes) => {
+        const actual = Math.round(actualMinutes);
+        if (actual < 1) return;
+        set((s) => ({
+          ...s,
+          timeLog: [
+            ...s.timeLog,
+            { key: timeKey(task.title), title: task.title, planned: task.duration, actual, date: task.date },
+          ].slice(-300),
+        }));
+      },
       toggleDayTask: (id) =>
         set((s) => ({
           ...s,

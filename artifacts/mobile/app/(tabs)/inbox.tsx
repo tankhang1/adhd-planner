@@ -12,6 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { BodyText, Card, Eyebrow, Page, PageTitle, SectionHeading } from '@/components/DayflowUI';
 import { formatMinutes, toDateKey, useDayflow } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { CloudBuddy } from '@/components/CloudBuddy';
 
 export default function InboxScreen() {
   const colors = useColors();
@@ -48,15 +49,15 @@ export default function InboxScreen() {
     >
       <Page>
         <View style={styles.header}>
-          <Eyebrow>NO NEED TO SORT IT YET</Eyebrow>
-          <PageTitle>Get it out of your head.</PageTitle>
+          <Eyebrow>BRAIN DUMP</Eyebrow>
+          <PageTitle>Get it out of your head</PageTitle>
           <BodyText style={styles.headerCopy}>
-            Catch every thought here. Decide what to do with it when you have room.
+            Write down anything on your mind. You can decide what to do with it later.
           </BodyText>
         </View>
 
         <Card style={styles.composer}>
-          <Text style={[styles.inputLabel, { color: colors.foreground }]}>Add a thought</Text>
+          <Text style={[styles.inputLabel, { color: colors.foreground }]}>What’s on your mind?</Text>
           <TextInput
             accessibilityLabel="Task to add to your inbox"
             accessibilityHint="This task is saved on this device."
@@ -93,7 +94,7 @@ export default function InboxScreen() {
             ]}
           >
             <Feather name="plus" size={18} color={colors.primaryForeground} />
-            <Text style={[styles.addButtonText, { color: colors.primaryForeground }]}>Add to inbox</Text>
+            <Text style={[styles.addButtonText, { color: colors.primaryForeground }]}>Save it</Text>
           </Pressable>
         </Card>
 
@@ -145,7 +146,7 @@ export default function InboxScreen() {
                     ]}
                   >
                     <Feather name="calendar" size={15} color={colors.secondaryForeground} />
-                    <Text style={[styles.scheduleText, { color: colors.secondaryForeground }]}>Plan</Text>
+                    <Text style={[styles.scheduleText, { color: colors.secondaryForeground }]}>Schedule</Text>
                   </Pressable>
                 ) : (
                   <Pressable
@@ -205,18 +206,16 @@ export default function InboxScreen() {
           </View>
         ) : (
           <Card style={styles.emptyCard}>
-            <View style={[styles.emptyIcon, { backgroundColor: colors.sage }]}>
-              <Feather name="check" size={19} color={colors.primary} />
-            </View>
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Your mind has some room.</Text>
-            <BodyText>Anything new can wait here until you’re ready.</BodyText>
+            <CloudBuddy mood="happy" size={110} />
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Your head is clear</Text>
+            <BodyText>New thoughts can wait here until you’re ready.</BodyText>
           </Card>
         )}
 
         <View style={[styles.note, { backgroundColor: colors.apricot }]}>
           <Feather name="heart" size={16} color={colors.foreground} />
           <Text style={[styles.noteText, { color: colors.foreground }]}>
-            Nothing here is overdue. It’s just waiting for you.
+            Nothing here is late. It’s just waiting for you.
           </Text>
         </View>
       </Page>
@@ -248,7 +247,7 @@ const styles = StyleSheet.create({
   taskDone: { textDecorationLine: 'line-through', opacity: 0.56 },
   scheduleButton: { minHeight: 40, paddingHorizontal: 11, borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 6 },
   scheduleText: { fontSize: 12, fontWeight: '700' },
-  emptyCard: { alignItems: 'flex-start', gap: 10 },
+  emptyCard: { alignItems: 'center', gap: 10 },
   emptyIcon: { width: 42, height: 42, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   emptyTitle: { fontSize: 17, fontWeight: '700' },
   note: { minHeight: 50, borderRadius: 16, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 9 },

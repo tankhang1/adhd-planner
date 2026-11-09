@@ -6,7 +6,7 @@ import { requestCalendarPermission } from '@/services/calendar';
 import { Feather } from '@expo/vector-icons';
 import { BodyText, Card, Eyebrow, Page, PageTitle, SectionHeading } from '@/components/DayflowUI';
 import { useDayflow } from '@/context/DayflowContext';
-import { REMINDER_LEADS, formatMinutes } from '@/context/DayflowContext';
+import { BUFFER_OPTIONS, REMINDER_LEADS, formatMinutes, insightFor, overallTendency } from '@/context/DayflowContext';
 import type { VisualMode } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
 
@@ -104,7 +104,14 @@ export default function SettingsScreen() {
     calendarSyncEnabled, setCalendarSyncEnabled, resetOnboarding,
     liveActivityEnabled, setLiveActivityEnabled,
     reminderLead, setReminderLead, quietStart, quietEnd, setQuietHours, profile,
+    bufferMinutes, setBufferMinutes, timeLog,
   } = useDayflow();
+  const tendency = overallTendency(timeLog);
+  const overrunners = Array.from(new Set(timeLog.map((r) => r.title)))
+    .map((title) => ({ title, ins: insightFor(timeLog, title) }))
+    .filter((x): x is { title: string; ins: NonNullable<typeof x.ins> } => !!x.ins && x.ins.ratio > 1.2)
+    .sort((a, b) => b.ins.ratio - a.ins.ratio)
+    .slice(0, 3);
   const quietOn = quietStart !== null && quietEnd !== null;
 
   const toggleReminders = async (on: boolean) => {
@@ -127,27 +134,27 @@ export default function SettingsScreen() {
   return (
     <Page>
       <View style={styles.header}>
-        <Eyebrow>MAKE IT FEEL LIKE YOURS</Eyebrow>
-        <PageTitle>Your space.</PageTitle>
+        <Eyebrow>SETTINGS</Eyebrow>
+        <PageTitle>Make it yours</PageTitle>
         <BodyText style={styles.headerCopy}>
-          Keep the parts that help. The rest can stay out of the way.
+          Keep what helps. Turn off what doesn’t.
         </BodyText>
       </View>
 
       <View style={styles.section}>
-        <SectionHeading title="Choose your feel" subtitle="Change this anytime." />
+        <SectionHeading title="Look & feel" subtitle="You can switch anytime." />
         <ModeOption
           mode="playful"
-          title="Bright & gentle"
-          subtitle="Warm color, a little more personality"
+          title="Colorful"
+          subtitle="Bright colors and tall blocks that show time"
           icon="sun"
           selected={visualMode === 'playful'}
           onPress={() => setVisualMode('playful')}
         />
         <ModeOption
           mode="focused"
-          title="Quiet & focused"
-          subtitle="Softer contrast, fewer visual cues"
+          title="Calm"
+          subtitle="Fewer colors, tidy blocks, less to look at"
           icon="target"
           selected={visualMode === 'focused'}
           onPress={() => setVisualMode('focused')}
@@ -155,7 +162,7 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
-        <SectionHeading title="Help outside the app" subtitle="Gentle nudges, never nagging." />
+        <SectionHeading title="Reminders & widgets" subtitle="Gentle nudges, never nagging." />
         <ToggleRow
           icon="bell"
           title="Transition reminders"
@@ -166,7 +173,7 @@ export default function SettingsScreen() {
         />
         {remindersEnabled ? (
           <View style={[styles.subPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>Heads-up before each activity</Text>
+            <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>Remind me before each activity</Text>
             <View style={styles.chipRow}>
               {REMINDER_LEADS.map((m) => {
                 const sel = m === reminderLead;
@@ -188,7 +195,7 @@ export default function SettingsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={[styles.modeTitle, { color: colors.foreground }]}>Quiet hours</Text>
                 <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>
-                  {quietOn ? `No reminders ${formatMinutes(quietStart)} – ${formatMinutes(quietEnd)}` : 'Reminders can arrive any time'}
+                  {quietOn ? `No reminders ${formatMinutes(quietStart)} – ${formatMinutes(quietEnd)}` : 'Reminders can arrive at any time'}
                 </Text>
               </View>
               <Switch
@@ -241,7 +248,7 @@ export default function SettingsScreen() {
             <Feather name="grid" size={17} color={colors.primary} />
           </View>
           <View style={styles.modeCopy}>
-            <Text style={[styles.modeTitle, { color: colors.foreground }]}>Add the home-screen widget</Text>
+            <Text style={[styles.modeTitle, { color: colors.foreground }]}>Add a widget</Text>
             <Text style={[styles.modeSubtitle, { color: colors.secondaryForeground }]}>
               {Platform.OS === 'android'
                 ? 'Long-press your home screen → Widgets → Dayflow.'
@@ -262,11 +269,64 @@ export default function SettingsScreen() {
             <Feather name="refresh-cw" size={17} color={colors.mutedForeground} />
           </View>
           <View style={styles.modeCopy}>
-            <Text style={[styles.modeTitle, { color: colors.foreground }]}>Rebuild today from scratch</Text>
-            <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>Answer the 3 setup questions again</Text>
+            <Text style={[styles.modeTitle, { color: colors.foreground }]}>Start today over</Text>
+            <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>Answer 3 quick questions to rebuild today</Text>
           </View>
           <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
         </Pressable>
+      </View>
+
+      <View style={styles.section}>
+        <SectionHeading title="Time, made visible" subtitle="Learned quietly from your focus sessions." />
+        <View style={[styles.subPanel, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 0 }]}>
+          <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>Break between activities</Text>
+          <View style={styles.chipRow}>
+            {BUFFER_OPTIONS.map((m) => {
+              const sel = m === bufferMinutes;
+              return (
+                <Pressable
+                  key={m}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: sel }}
+                  onPress={() => setBufferMinutes(m)}
+                  testID={`buffer-${m}`}
+                  style={[styles.chip, { backgroundColor: sel ? colors.primary : colors.muted }]}
+                >
+                  <Text style={{ color: sel ? colors.primaryForeground : colors.foreground, fontWeight: '700' }}>{m === 0 ? 'None' : `${m} min`}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>
+            Switching tasks takes time. New activities will start after this gap.
+          </Text>
+        </View>
+
+        <View style={[styles.subPanel, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 0 }]}>
+          <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>How long things really take</Text>
+          {tendency ? (
+            <Text style={[styles.modeTitle, { color: colors.foreground }]}>
+              {tendency.ratio > 1.1
+                ? `Things usually take you about ${Math.round((tendency.ratio - 1) * 100)}% longer than planned.`
+                : tendency.ratio < 0.9
+                  ? `You often finish about ${Math.round((1 - tendency.ratio) * 100)}% faster than planned.`
+                  : 'Your time estimates have been spot on lately.'}
+            </Text>
+          ) : (
+            <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>
+              Finish a few activities from the focus timer and Dayflow will show how long things really take — no judging, just info.
+            </Text>
+          )}
+          {overrunners.map(({ title, ins }) => (
+            <View key={title} style={styles.patternRow}>
+              <Feather name="clock" size={14} color={colors.mutedForeground} />
+              <Text style={[styles.patternText, { color: colors.foreground }]} numberOfLines={1}>{title}</Text>
+              <Text style={[styles.patternMeta, { color: colors.mutedForeground }]}>
+                plan {ins.typicalPlanned}m → real {ins.typicalActual}m
+              </Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       <Card style={styles.promiseCard}>
@@ -274,8 +334,8 @@ export default function SettingsScreen() {
           <Feather name="shield" size={18} color={colors.primary} />
         </View>
         <View style={styles.promiseCopy}>
-          <Text style={[styles.promiseTitle, { color: colors.foreground }]}>Your plan stays yours</Text>
-          <BodyText>Tasks and routines are saved on this device. No account needed for this prototype.</BodyText>
+          <Text style={[styles.promiseTitle, { color: colors.foreground }]}>Your data stays on your phone</Text>
+          <BodyText>Everything is saved on this device. No account needed.</BodyText>
         </View>
       </Card>
 
@@ -297,7 +357,7 @@ export default function SettingsScreen() {
         >
           <Feather name="tag" size={17} color={colors.secondaryForeground} />
           <Text style={[styles.pricingToggleText, { color: colors.secondaryForeground }]}>
-            {showPlans ? 'Hide plan details' : 'View plan details'}
+            {showPlans ? 'Hide prices' : 'See prices'}
           </Text>
           <Feather name={showPlans ? 'chevron-up' : 'chevron-down'} size={17} color={colors.secondaryForeground} />
         </Pressable>
@@ -308,17 +368,17 @@ export default function SettingsScreen() {
                 <Text style={[styles.planName, { color: colors.foreground }]}>Free</Text>
                 <Text style={[styles.planPrice, { color: colors.foreground }]}>$0</Text>
               </View>
-              <BodyText>Visual day plan, focus timer, and two routines.</BodyText>
+              <BodyText>Visual timeline, focus timer, widgets and two routines.</BodyText>
             </Card>
             <Card style={[styles.planCard, { borderColor: colors.primary }]}>
               <View style={styles.planRow}>
-                <Text style={[styles.planName, { color: colors.foreground }]}>Pro preview</Text>
+                <Text style={[styles.planName, { color: colors.foreground }]}>Pro</Text>
                 <Text style={[styles.planPrice, { color: colors.foreground }]}>$39.99 / year</Text>
               </View>
-              <BodyText>Planned price only. No purchase is available in this UI prototype.</BodyText>
+              <BodyText>Unlimited routines, calendar sync and Live Activity. Coming soon.</BodyText>
             </Card>
             <Text style={[styles.lifetimeNote, { color: colors.mutedForeground }]}>
-              Lifetime option planned at $79.99. Prices shown in USD.
+              Or pay once: $79.99 for life. Prices in USD.
             </Text>
           </View>
         ) : null}
@@ -327,7 +387,7 @@ export default function SettingsScreen() {
       <View style={[styles.footer, { borderTopColor: colors.border }]}>
         <Text style={[styles.footerBrand, { color: colors.foreground }]}>dayflow</Text>
         <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
-          A visual planner with room to be human.
+          A visual day planner for ADHD brains.
         </Text>
       </View>
     </Page>
@@ -342,6 +402,9 @@ const styles = StyleSheet.create({
   quietRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   quietStep: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, height: 40, borderRadius: 20 },
   quietText: { fontSize: 13, fontWeight: '700' },
+  patternRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  patternText: { flex: 1, fontSize: 14, fontWeight: '600' },
+  patternMeta: { fontSize: 12, fontWeight: '600' },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 20, borderWidth: 1 },
   header: { gap: 8 },
   headerCopy: { maxWidth: 340, fontSize: 15, lineHeight: 22 },

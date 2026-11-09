@@ -7,6 +7,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDayflow } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { CloudBuddy } from '@/components/CloudBuddy';
 
 const SIZE = 250;
 const STROKE = 16;
@@ -92,10 +93,8 @@ export default function RoutineRunScreen() {
 
       {finished ? (
         <View style={styles.center}>
-          <View style={[styles.doneBadge, { backgroundColor: colors.card }]}>
-            <Feather name="check" size={56} color={ink} />
-          </View>
-          <Text style={[styles.stepTitle, { color: colors.foreground }]}>Routine complete</Text>
+          <CloudBuddy mood="happy" size={180} />
+          <Text style={[styles.stepTitle, { color: colors.foreground }]}>Routine done!</Text>
           <Text style={[styles.hint, { color: colors.mutedForeground }]}>
             {routine.steps.filter((s) => s.done).length} of {routine.steps.length} steps done — that counts.
           </Text>
@@ -136,7 +135,7 @@ export default function RoutineRunScreen() {
             <View style={styles.ringLabel}>
               <Text style={[styles.time, { color: colors.foreground }]} accessibilityLiveRegion="polite">{mm}:{ss}</Text>
               <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-                {left === 0 ? 'Time’s up — whenever you’re ready' : running ? 'take your time' : 'paused'}
+                {left === 0 ? 'Time’s up — move on when you’re ready' : running ? 'take your time' : 'paused'}
               </Text>
             </View>
           </View>
@@ -144,7 +143,7 @@ export default function RoutineRunScreen() {
           {routine.steps[index + 1] ? (
             <Text style={[styles.next, { color: colors.mutedForeground }]}>Next: {routine.steps[index + 1].title}</Text>
           ) : (
-            <Text style={[styles.next, { color: colors.mutedForeground }]}>Last step!</Text>
+            <Text style={[styles.next, { color: colors.mutedForeground }]}>Last step — almost there!</Text>
           )}
 
           <Pressable

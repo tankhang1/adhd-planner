@@ -80,7 +80,7 @@ export function buildWidgetPayload(tasks: DayTask[], now = new Date()): WidgetPa
   return {
     updatedAt: Math.floor(now.getTime() / 1000),
     tasks: tasks
-      .filter((x) => x.date === today || x.date === tomorrow)
+      .filter((x) => (x.date === today || x.date === tomorrow) && !x.parked)
       .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start)
       .map((x) => ({
         id: x.id,

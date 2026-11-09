@@ -7,12 +7,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatMinutes, useDayflow } from '@/context/DayflowContext';
 import type { Struggle } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { CloudBuddy } from '@/components/CloudBuddy';
 
 const STRUGGLES: Array<{ key: Struggle; title: string; subtitle: string; icon: keyof typeof Feather.glyphMap }> = [
-  { key: 'starting', title: 'Getting started', subtitle: 'I know what to do, I just can’t begin', icon: 'play-circle' },
-  { key: 'time', title: 'Losing track of time', subtitle: 'I’m often late or misjudge how long things take', icon: 'clock' },
-  { key: 'hyperfocus', title: 'Getting stuck', subtitle: 'I hyperfocus and forget everything else', icon: 'target' },
-  { key: 'overwhelm', title: 'Feeling overwhelmed', subtitle: 'Too many things, I don’t know where to start', icon: 'cloud' },
+  { key: 'starting', title: 'Getting started', subtitle: 'I know what to do, but I can’t begin', icon: 'play-circle' },
+  { key: 'time', title: 'Losing track of time', subtitle: 'I’m often late or guess times wrong', icon: 'clock' },
+  { key: 'hyperfocus', title: 'Losing myself in one thing', subtitle: 'I hyperfocus and forget the rest', icon: 'target' },
+  { key: 'overwhelm', title: 'Feeling overwhelmed', subtitle: 'Too much to do, no idea where to start', icon: 'cloud' },
 ];
 
 function TimeStepper({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) {
@@ -65,7 +66,7 @@ export default function OnboardingScreen() {
     },
     {
       eyebrow: 'QUESTION 3 OF 3',
-      title: 'What’s hardest for you?',
+      title: 'What’s hardest for you right now?',
       body: (
         <View style={{ gap: 10 }}>
           {STRUGGLES.map((s) => {
@@ -125,11 +126,16 @@ export default function OnboardingScreen() {
 
       <View style={styles.body}>
         {step === 0 ? (
-          <View style={[styles.hero, { backgroundColor: colors.lilac }]}>
-            <Feather name="sunrise" size={30} color={colors.lilacInk} />
-            <Text style={[styles.heroText, { color: colors.foreground }]}>
-              Three quick questions and we’ll sketch a gentle first day for you.
+          <View style={styles.heroCol}>
+            <CloudBuddy mood="hello" size={150} />
+            <Text style={[styles.heroText, { color: colors.foreground, textAlign: 'center' }]}>
+              Hi, I’m here to help your day feel lighter. Three quick questions and I’ll sketch a gentle first day for you.
             </Text>
+          </View>
+        ) : null}
+        {step > 0 ? (
+          <View style={styles.miniBuddy}>
+            <CloudBuddy mood={step === 2 && struggle ? 'happy' : step === 1 ? 'sleepy' : 'okay'} size={72} />
           </View>
         ) : null}
         <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>{current.eyebrow}</Text>
@@ -155,7 +161,7 @@ export default function OnboardingScreen() {
             { backgroundColor: colors.primary, opacity: !current.ready ? 0.4 : pressed ? 0.85 : 1 },
           ]}
         >
-          <Text style={[styles.ctaText, { color: colors.primaryForeground }]}>{last ? 'Build my day' : 'Next'}</Text>
+          <Text style={[styles.ctaText, { color: colors.primaryForeground }]}>{last ? 'Make my day' : 'Next'}</Text>
           <Feather name={last ? 'check' : 'arrow-right'} size={18} color={colors.primaryForeground} />
         </Pressable>
       </View>
@@ -168,6 +174,8 @@ const styles = StyleSheet.create({
   dots: { flexDirection: 'row', gap: 6 },
   dot: { height: 5, borderRadius: 3 },
   body: { flex: 1, gap: 14, paddingTop: 28, maxWidth: 520, width: '100%', alignSelf: 'center' },
+  heroCol: { alignItems: 'center', gap: 10, marginBottom: 10 },
+  miniBuddy: { alignSelf: 'flex-start', marginBottom: -4 },
   hero: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: 24, marginBottom: 10 },
   heroText: { flex: 1, fontSize: 15, lineHeight: 21, fontWeight: '600' },
   eyebrow: { fontSize: 12, fontWeight: '700', letterSpacing: 1 },

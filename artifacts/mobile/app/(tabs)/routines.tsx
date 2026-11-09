@@ -73,7 +73,7 @@ function RoutineCard({ routine }: { routine: Routine }) {
         style={({ pressed }) => [styles.start, { backgroundColor: ink, opacity: pressed ? 0.85 : 1 }]}
       >
         <Feather name="play" size={17} color="#FFFFFF" />
-        <Text style={styles.startText}>{completed > 0 ? 'Continue' : 'Start step by step'}</Text>
+        <Text style={styles.startText}>{completed > 0 ? 'Continue' : 'Start'}</Text>
       </Pressable>
     </View>
   );
@@ -85,10 +85,10 @@ export default function RoutinesScreen() {
   return (
     <Page>
       <View style={styles.header}>
-        <Eyebrow>REPEATABLE, NOT RIGID</Eyebrow>
+        <Eyebrow>SAME STEPS, LESS THINKING</Eyebrow>
         <PageTitle>Routines</PageTitle>
         <BodyText style={styles.headerCopy}>
-          One step at a time, with a timer for each. Skip anything — it still counts.
+          Follow along one step at a time. Skip what you need to — it still counts.
         </BodyText>
       </View>
 
@@ -107,7 +107,7 @@ export default function RoutinesScreen() {
       <View style={[styles.reassurance, { backgroundColor: colors.secondary }]}>
         <Feather name="heart" size={16} color={colors.primary} />
         <Text style={[styles.reassuranceText, { color: colors.secondaryForeground }]}>
-          No streaks here. Your routines never change unless you change them.
+          No streaks, no pressure. Your routines only change when you change them.
         </Text>
       </View>
     </Page>
