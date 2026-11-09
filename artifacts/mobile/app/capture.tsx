@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDayflow } from '@/context/DayflowContext';
@@ -32,7 +33,7 @@ export default function CaptureScreen() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaved(items.length);
     setDraft('');
-    setTimeout(() => router.back(), 1100);
+    setTimeout(() => goBack(), 1100);
   };
 
   // Shortcut / Siri passed text in the link → save it immediately.
@@ -45,10 +46,10 @@ export default function CaptureScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={[styles.screen, { backgroundColor: colors.background, paddingTop: Platform.OS === 'ios' ? 16 : insets.top + 8, paddingBottom: insets.bottom + 12 }]}
+      style={[styles.screen, { backgroundColor: colors.background, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12 }]}
     >
       <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel={tr('common.close')} hitSlop={12} onPress={() => router.back()} testID="capture-close">
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('common.close')} hitSlop={12} onPress={() => goBack()} testID="capture-close">
           <Feather name="x" size={24} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.topLabel, { color: colors.foreground }]}>{tr('capture.label')}</Text>

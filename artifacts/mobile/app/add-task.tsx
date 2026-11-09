@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Switch, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { REPEAT_PRESETS, TASK_TONES, formatMinutes, fromDateKey, insightFor, isEssential, leaveTimes, todayKey, useDayflow } from '@/context/DayflowContext';
@@ -54,7 +55,7 @@ export default function AddTaskScreen() {
   const sameDays = (a: number[], b: number[]) => a.length === b.length && a.every((d) => b.includes(d));
   const finish = () => {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.back();
+    goBack();
   };
 
   /** For repeating tasks, ask whether a change applies to just this day or the whole series. */
@@ -93,7 +94,7 @@ export default function AddTaskScreen() {
     if (!existing) return;
     const doIt = (scope: EditScope = 'one') => {
       removeDayTask(existing.id, scope);
-      router.back();
+      goBack();
     };
     if (series) return askScope('Remove', doIt);
     if (Platform.OS === 'web') return doIt();
@@ -106,7 +107,7 @@ export default function AddTaskScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.background, paddingBottom: insets.bottom + 16 }]}>
       <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel={tr('common.cancel')} onPress={() => router.back()} hitSlop={12} testID="cancel-add">
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('common.cancel')} onPress={() => goBack()} hitSlop={12} testID="cancel-add">
           <Text style={[styles.topBtn, { color: colors.mutedForeground }]}>{tr('common.cancel')}</Text>
         </Pressable>
         <Text style={[styles.topTitle, { color: colors.foreground }]}>{existing ? tr('addTask.editTitle') : tr('addTask.newTitle')}</Text>

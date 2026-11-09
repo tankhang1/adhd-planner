@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as MailComposer from 'expo-mail-composer';
@@ -93,10 +94,10 @@ export default function FeedbackScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={[styles.screen, { backgroundColor: colors.background, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}
+      style={[styles.screen, { backgroundColor: colors.background, paddingTop: insets.top + 8 }]}
     >
       <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel={tr('common.close')} hitSlop={12} onPress={() => router.back()} testID="feedback-close">
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('common.close')} hitSlop={12} onPress={() => goBack()} testID="feedback-close">
           <Feather name="x" size={24} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.topLabel, { color: colors.foreground }]}>{tr('feedback.label')}</Text>
@@ -110,7 +111,7 @@ export default function FeedbackScreen() {
           <Text style={[styles.sub, { color: colors.mutedForeground, textAlign: 'center' }]}>
             {tr('feedback.thanksBody')}
           </Text>
-          <Pressable accessibilityRole="button" onPress={() => router.back()} style={[styles.send, { backgroundColor: colors.primary, alignSelf: 'stretch' }]} testID="feedback-done">
+          <Pressable accessibilityRole="button" onPress={() => goBack()} style={[styles.send, { backgroundColor: colors.primary, alignSelf: 'stretch' }]} testID="feedback-done">
             <Text style={[styles.sendText, { color: colors.primaryForeground }]}>{tr('feedback.backToApp')}</Text>
           </Pressable>
         </View>

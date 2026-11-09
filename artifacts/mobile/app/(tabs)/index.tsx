@@ -349,6 +349,16 @@ function OverrunNudge({ task, now, allowDialog }: { task: DayTask; now: number; 
   const { extendTask, toggleDayTask, shiftRestOfDay } = useDayflow();
   const [dialogFor, setDialogFor] = useState<string | null>(task.id);
   useEffect(() => setDialogFor(task.id), [task.id]);
+  // Wait for any other dialog to finish closing — iOS refuses to present two at once.
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (!allowDialog) {
+      setReady(false);
+      return;
+    }
+    const id = setTimeout(() => setReady(true), 700);
+    return () => clearTimeout(id);
+  }, [allowDialog]);
   const over = Math.max(1, Math.round(now - (task.start + task.duration)));
   const ink = inkFor(colors, task.tone);
 
@@ -366,7 +376,7 @@ function OverrunNudge({ task, now, allowDialog }: { task: DayTask; now: number; 
   return (
     <>
       <BuddyDialog
-        visible={allowDialog && dialogFor === task.id}
+        visible={allowDialog && ready && dialogFor === task.id}
         mood="okay"
         title={t('today.overrunTitle', { title: task.title })}
         message={over > 1 ? t('today.overrunMessageOver', { count: over }) : t('today.overrunMessage')}
@@ -503,6 +513,7 @@ export default function TodayScreen() {
   const now = minutesNow(clock);
   const isToday = selectedDate === todayKey();
   const [checkInKey, setCheckInKey] = useState(0);
+  const [energyOpen, setEnergyOpen] = useState(false);
   const [welcomeClosed, setWelcomeClosed] = useState(false);
   // Most recent block that ended in the last 45 min without being ticked off.
   const overrunCandidate = isToday
@@ -628,7 +639,7 @@ export default function TodayScreen() {
           <SurvivalBanner date={selectedDate} parkedCount={dayTasks.filter((t) => t.date === selectedDate && t.parked).length} />
         ) : null}
 
-        {overrun ? <OverrunNudge task={overrun} now={now} allowDialog={!showWelcome && !showWeekly} /> : null}
+        {overrun ? <OverrunNudge task={overrun} now={now} allowDialog={!showWelcome && !showWeekly && !energyOpen && !celebration} /> : null}
 
         {isToday ? <NowCard tasks={sorted} now={now} /> : null}
 
@@ -760,7 +771,12 @@ export default function TodayScreen() {
 
       {showWeekly && reviewWeek ? <WeeklyReview monday={reviewWeek} onClose={() => setWeeklyClosed(true)} /> : null}
 
-      <EnergyCheckIn blocked={showWelcome || showWeekly} forceOpen={checkInKey > 0 ? true : undefined} key={`checkin-${checkInKey}`} />
+      <EnergyCheckIn
+        blocked={showWelcome || showWeekly}
+        forceOpen={checkInKey > 0 ? true : undefined}
+        key={`checkin-${checkInKey}`}
+        onVisibleChange={setEnergyOpen}
+      />
 
       {celebration ? <Celebration message={celebration} onDone={() => setCelebration(null)} /> : null}
 

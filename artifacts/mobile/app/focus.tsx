@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { Feather } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
@@ -88,7 +89,7 @@ export default function FocusScreen() {
       setTreat(treats[Math.floor(Math.random() * treats.length)]);
       return;
     }
-    router.back();
+    goBack();
   };
 
   const takeTreat = () => {
@@ -105,7 +106,7 @@ export default function FocusScreen() {
       });
     }
     setTreat(null);
-    router.back();
+    goBack();
   };
 
   const progress = total ? 1 - seconds / total : 0;
@@ -120,7 +121,7 @@ export default function FocusScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors[tone], paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 }]}>
       <View style={styles.topBar}>
-        <Pressable accessibilityRole="button" accessibilityLabel={tr('focus.closeA11y')} hitSlop={12} onPress={() => router.back()} testID="close-focus">
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('focus.closeA11y')} hitSlop={12} onPress={() => goBack()} testID="close-focus">
           <Feather name="x" size={24} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.topLabel, { color: colors.foreground }]}>
@@ -152,7 +153,7 @@ export default function FocusScreen() {
                   <Feather name="play" size={18} color="#FFFFFF" />
                   <Text style={styles.primaryText}>{tr('focus.keepGoing')}</Text>
                 </Pressable>
-                <Pressable accessibilityRole="button" onPress={() => router.back()} testID="tiny-stop" style={styles.secondary}>
+                <Pressable accessibilityRole="button" onPress={() => goBack()} testID="tiny-stop" style={styles.secondary}>
                   <Text style={[styles.secondaryText, { color: colors.foreground }]}>{tr('focus.stopHere')}</Text>
                 </Pressable>
               </>
@@ -254,7 +255,7 @@ export default function FocusScreen() {
         message={treat ? tr('focus.treatMessage', { title: treat.title, count: treat.minutes }) : undefined}
         onClose={() => {
           setTreat(null);
-          router.back();
+          goBack();
         }}
       >
         <DialogButton label={tr('focus.treatYes')} testID="treat-yes" onPress={takeTreat} />
@@ -264,7 +265,7 @@ export default function FocusScreen() {
           testID="treat-no"
           onPress={() => {
             setTreat(null);
-            router.back();
+            goBack();
           }}
         />
       </BuddyDialog>

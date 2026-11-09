@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TASK_TONES, useDayflow } from '@/context/DayflowContext';
@@ -49,14 +50,14 @@ export default function RoutineEditScreen() {
     if (!canSave) return;
     saveRoutine({ title, subtitle, tone, icon, steps: steps.map(({ id: sid, title: t, duration }) => ({ id: sid, title: t, duration })) }, existing?.id);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.back();
+    goBack();
   };
 
   const remove = () => {
     if (!existing) return;
     const doIt = () => {
       removeRoutine(existing.id);
-      router.back();
+      goBack();
     };
     if (Platform.OS === 'web') return doIt();
     Alert.alert(tr('routineEdit.deleteConfirm'), existing.title, [
@@ -68,7 +69,7 @@ export default function RoutineEditScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.background, paddingBottom: insets.bottom }]}>
       <View style={styles.top}>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={12} testID="routine-cancel">
+        <Pressable accessibilityRole="button" onPress={() => goBack()} hitSlop={12} testID="routine-cancel">
           <Text style={[styles.topBtn, { color: colors.mutedForeground }]}>{tr('common.cancel')}</Text>
         </Pressable>
         <Text style={[styles.topTitle, { color: colors.foreground }]}>{existing ? tr('routineEdit.editTitle') : tr('routineEdit.newTitle')}</Text>

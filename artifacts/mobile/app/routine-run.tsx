@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import * as Haptics from 'expo-haptics';
 import Svg, { Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -58,7 +59,7 @@ export default function RoutineRunScreen() {
     return (
       <View style={[styles.screen, { backgroundColor: colors.background, paddingTop: insets.top + 20 }]}>
         <Text style={{ color: colors.foreground }}>{tr('routineRun.notFound')}</Text>
-        <Pressable onPress={() => router.back()}><Text style={{ color: colors.primary }}>{tr('routineRun.goBack')}</Text></Pressable>
+        <Pressable onPress={() => goBack()}><Text style={{ color: colors.primary }}>{tr('routineRun.goBack')}</Text></Pressable>
       </View>
     );
   }
@@ -75,7 +76,7 @@ export default function RoutineRunScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors[routine.tone], paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20 }]}>
       <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel={tr('routineRun.close')} hitSlop={12} onPress={() => router.back()} testID="close-routine">
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('routineRun.close')} hitSlop={12} onPress={() => goBack()} testID="close-routine">
           <Feather name="x" size={24} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.topTitle, { color: colors.foreground }]}>{routine.title}</Text>
@@ -104,7 +105,7 @@ export default function RoutineRunScreen() {
             accessibilityRole="button"
             onPress={() => {
               resetRoutine(routine.id);
-              router.back();
+              goBack();
             }}
             testID="routine-finish"
             style={[styles.primary, { backgroundColor: ink }]}

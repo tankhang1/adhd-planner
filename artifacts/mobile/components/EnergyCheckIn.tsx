@@ -25,7 +25,9 @@ const greeting = () => {
  * Morning check-in dialog. Opens by itself on the first visit of the day
  * (before 4 PM, once onboarding is done), or when `forceOpen` is set.
  */
-export function EnergyCheckIn({ forceOpen, onClose, blocked }: { forceOpen?: boolean; onClose?: () => void; blocked?: boolean }) {
+export function EnergyCheckIn({
+  forceOpen, onClose, blocked, onVisibleChange,
+}: { forceOpen?: boolean; onClose?: () => void; blocked?: boolean; onVisibleChange?: (open: boolean) => void }) {
   const colors = useColors();
   useT();
   const reduce = useReducedMotion();
@@ -41,8 +43,12 @@ export function EnergyCheckIn({ forceOpen, onClose, blocked }: { forceOpen?: boo
   useEffect(() => {
     if (!hydrated || !onboarded || blocked) return;
     if (energyPromptDate === date || energyFor(date) || new Date().getHours() >= 16) return;
-    markEnergyPrompted(date);
-    setVisible(true);
+    // Small pause so a dialog that just closed can finish animating (iOS shows one at a time).
+    const id = setTimeout(() => {
+      markEnergyPrompted(date);
+      setVisible(true);
+    }, 700);
+    return () => clearTimeout(id);
   }, [hydrated, onboarded, blocked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -51,6 +57,11 @@ export function EnergyCheckIn({ forceOpen, onClose, blocked }: { forceOpen?: boo
       setVisible(true);
     }
   }, [forceOpen]);
+
+  // Let the parent know, so only one dialog is ever on screen (iOS can present just one).
+  useEffect(() => {
+    onVisibleChange?.(visible);
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const close = () => {
     setVisible(false);

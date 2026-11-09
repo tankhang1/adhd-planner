@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatMinutes, todayKey, useDayflow } from '@/context/DayflowContext';
@@ -58,7 +59,7 @@ export default function OneThingScreen() {
     }
     // Inbox item: put it on the timeline right now, then start.
     scheduleInboxTask(suggestion.item.id, nowMinutes());
-    router.back();
+    goBack();
   };
 
   const done = () => {
@@ -71,7 +72,7 @@ export default function OneThingScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: task ? colors[tone] : colors.background, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 }]}>
       <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel={tr('oneThing.closeA11y')} hitSlop={12} onPress={() => router.back()} testID="one-thing-close">
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('oneThing.closeA11y')} hitSlop={12} onPress={() => goBack()} testID="one-thing-close">
           <Feather name="x" size={24} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.topLabel, { color: colors.foreground }]}>{pickMode ? tr('oneThing.labelPick') : tr('oneThing.labelOne')}</Text>
