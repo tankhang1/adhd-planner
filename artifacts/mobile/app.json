@@ -17,7 +17,10 @@
       },
       "infoPlist": {
         "NSSupportsLiveActivities": true,
-        "NSSupportsLiveActivitiesFrequentUpdates": false
+        "NSSupportsLiveActivitiesFrequentUpdates": false,
+        "LSApplicationQueriesSchemes": [
+          "mailto"
+        ]
       },
       "appleTeamId": "46MQJN23JJ"
     },
@@ -72,7 +75,8 @@
             }
           ]
         }
-      ]
+      ],
+      "expo-mail-composer"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -440,23 +440,16 @@ function DaySummary({ tasks, past }: { tasks: DayTask[]; past: boolean }) {
         ? [`${n} done today`, `${time} of real effort. Be proud of that.`]
         : ['Some days are like this', 'Tomorrow is a fresh page. Be kind to yourself tonight.'];
   return (
-    <View style={[styles.summary, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]} accessibilityRole="summary">
-      <View style={styles.summaryTop}>
-        <CloudBuddy mood={done.length ? 'happy' : 'sleepy'} size={64} />
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.summaryTitle, { color: colors.foreground }]}>{headline}</Text>
-          <Text style={[styles.summaryMeta, { color: colors.mutedForeground }]}>{message}</Text>
-        </View>
+    <View
+      style={[styles.summary, { backgroundColor: colors.card, borderColor: colors.border }]}
+      accessibilityRole="summary"
+      accessibilityLabel={`${headline}. ${message}`}
+    >
+      <CloudBuddy mood={done.length ? 'happy' : 'sleepy'} size={52} />
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.summaryTitle, { color: colors.foreground }]} numberOfLines={1}>{headline}</Text>
+        <Text style={[styles.summaryMeta, { color: colors.mutedForeground }]} numberOfLines={2}>{message}</Text>
       </View>
-      {done.length ? (
-        <View style={styles.summaryIcons}>
-          {done.slice(0, 10).map((t) => (
-            <View key={t.id} style={[styles.summaryDot, { backgroundColor: colors[t.tone] }]}>
-              <ActivityIcon name={t.icon} size={15} color={colors[`${t.tone}Ink` as const]} />
-            </View>
-          ))}
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -839,7 +832,7 @@ const styles = StyleSheet.create({
   calBlock: { borderWidth: 1, borderStyle: 'dashed', paddingLeft: 18 },
   calStripe: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 },
   quietStripe: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 },
-  summary: { padding: 16, borderRadius: 24, gap: 12 },
+  summary: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingLeft: 8, paddingRight: 14, borderRadius: 20, borderWidth: 1 },
   summaryTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   summaryIcon: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   summaryTitle: { fontSize: 17, fontWeight: '800', letterSpacing: -0.2 },

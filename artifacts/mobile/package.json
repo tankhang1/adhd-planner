@@ -55,11 +55,13 @@
   },
   "dependencies": {
     "@bacons/apple-targets": "5.0.0",
-    "expo-calendar": "~58.0.6",
-    "expo-notifications": "~58.1.8",
-    "react-native-android-widget": "0.26.0",
     "expo": "~58.0.23",
+    "expo-calendar": "~58.0.6",
+    "expo-device": "~58.0.5",
+    "expo-mail-composer": "~58.0.3",
+    "expo-notifications": "~58.1.8",
     "react": "19.3.0",
-    "react-native": "0.88.1"
+    "react-native": "0.88.1",
+    "react-native-android-widget": "0.26.0"
   }
 }

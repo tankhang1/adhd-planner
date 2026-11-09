@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { requestReminderPermission } from '@/services/reminders';
@@ -129,7 +129,6 @@ export default function SettingsScreen() {
     if (!ok) Alert.alert('Calendar access is off', 'Allow calendar access for Dayflow in your phone settings.');
     setCalendarSyncEnabled(ok);
   };
-  const [showPlans, setShowPlans] = useState(false);
 
   return (
     <Page>
@@ -255,6 +254,7 @@ export default function SettingsScreen() {
                 : 'Long-press your home or lock screen → Edit → Add widget → Dayflow.'}
             </Text>
           </View>
+        </View>
         <View style={[styles.toggleRow, { backgroundColor: colors.secondary, borderColor: colors.secondary }]}>
           <View style={[styles.modeIcon, { backgroundColor: colors.card }]}>
             <Feather name="zap" size={17} color={colors.primary} />
@@ -267,7 +267,6 @@ export default function SettingsScreen() {
                 : 'Make a home-screen shortcut to dayflow://capture.'}
             </Text>
           </View>
-        </View>
         </View>
         <Pressable
           accessibilityRole="button"
@@ -342,6 +341,23 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      <Pressable
+        accessibilityRole="button"
+        accessibilityHint="Opens a form to email the Dayflow team"
+        onPress={() => router.push('/feedback')}
+        testID="open-feedback"
+        style={({ pressed }) => [styles.toggleRow, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
+      >
+        <View style={[styles.modeIcon, { backgroundColor: colors.secondary }]}>
+          <Feather name="message-circle" size={17} color={colors.primary} />
+        </View>
+        <View style={styles.modeCopy}>
+          <Text style={[styles.modeTitle, { color: colors.foreground }]}>Send feedback or report a bug</Text>
+          <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>A real person reads every message</Text>
+        </View>
+        <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+      </Pressable>
+
       <Card style={styles.promiseCard}>
         <View style={[styles.promiseIcon, { backgroundColor: colors.sage }]}>
           <Feather name="shield" size={18} color={colors.primary} />
@@ -351,51 +367,6 @@ export default function SettingsScreen() {
           <BodyText>Everything is saved on this device. No account needed.</BodyText>
         </View>
       </Card>
-
-      <View style={styles.section}>
-        <SectionHeading
-          title="Clear, upfront pricing"
-          subtitle="A preview of the plan in your product brief."
-        />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={showPlans ? 'Hide pricing preview' : 'Show pricing preview'}
-          accessibilityState={{ expanded: showPlans }}
-          onPress={() => setShowPlans((value) => !value)}
-          testID="toggle-pricing"
-          style={({ pressed }) => [
-            styles.pricingToggle,
-            { backgroundColor: colors.secondary, opacity: pressed ? 0.78 : 1 },
-          ]}
-        >
-          <Feather name="tag" size={17} color={colors.secondaryForeground} />
-          <Text style={[styles.pricingToggleText, { color: colors.secondaryForeground }]}>
-            {showPlans ? 'Hide prices' : 'See prices'}
-          </Text>
-          <Feather name={showPlans ? 'chevron-up' : 'chevron-down'} size={17} color={colors.secondaryForeground} />
-        </Pressable>
-        {showPlans ? (
-          <View style={styles.planList}>
-            <Card style={styles.planCard}>
-              <View style={styles.planRow}>
-                <Text style={[styles.planName, { color: colors.foreground }]}>Free</Text>
-                <Text style={[styles.planPrice, { color: colors.foreground }]}>$0</Text>
-              </View>
-              <BodyText>Visual timeline, focus timer, widgets and two routines.</BodyText>
-            </Card>
-            <Card style={[styles.planCard, { borderColor: colors.primary }]}>
-              <View style={styles.planRow}>
-                <Text style={[styles.planName, { color: colors.foreground }]}>Pro</Text>
-                <Text style={[styles.planPrice, { color: colors.foreground }]}>$39.99 / year</Text>
-              </View>
-              <BodyText>Unlimited routines, calendar sync and Live Activity. Coming soon.</BodyText>
-            </Card>
-            <Text style={[styles.lifetimeNote, { color: colors.mutedForeground }]}>
-              Or pay once: $79.99 for life. Prices in USD.
-            </Text>
-          </View>
-        ) : null}
-      </View>
 
       <View style={[styles.footer, { borderTopColor: colors.border }]}>
         <Text style={[styles.footerBrand, { color: colors.foreground }]}>dayflow</Text>

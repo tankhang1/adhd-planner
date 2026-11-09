@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -12,6 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { Feather } from '@expo/vector-icons';
 import { reloadAppAsync } from 'expo';
+import { CloudBuddy } from './CloudBuddy';
+
+const SUPPORT_EMAIL = 'cs.nexatech@gmail.com';
 
 export type ErrorFallbackProps = {
   error: Error;
@@ -41,6 +45,17 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
     return details;
   };
 
+  const reportBug = () => {
+    const body =
+      'What were you doing when this happened?\n\n\n' +
+      '— Technical details —\n' +
+      `Platform: ${Platform.OS} ${Platform.Version}\n` +
+      `Time: ${new Date().toISOString()}\n\n` +
+      formatErrorDetails().slice(0, 3000);
+    const url = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`[Dayflow Bug] ${error.message.slice(0, 60)}`)}&body=${encodeURIComponent(body)}`;
+    Linking.openURL(url).catch(() => {});
+  };
+
   const monoFont = Platform.select({
     ios: 'Menlo',
     android: 'monospace',
@@ -68,12 +83,13 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
       ) : null}
 
       <View style={styles.content}>
+        <CloudBuddy mood="sleepy" size={150} />
         <Text style={[styles.title, { color: colors.foreground }]}>
-          Something went wrong
+          Oops, something went wrong
         </Text>
 
         <Text style={[styles.message, { color: colors.mutedForeground }]}>
-          Please reload the app to continue.
+          It’s not you, it’s us. Your plan is safe on this phone — try again.
         </Text>
 
         <Pressable
@@ -90,8 +106,18 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
           <Text
             style={[styles.buttonText, { color: colors.primaryForeground }]}
           >
-            Try Again
+            Try again
           </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={reportBug}
+          accessibilityRole="button"
+          accessibilityHint={`Opens your email app to send the error to ${SUPPORT_EMAIL}`}
+          style={({ pressed }) => [styles.reportButton, { opacity: pressed ? 0.7 : 1 }]}
+        >
+          <Feather name="mail" size={16} color={colors.mutedForeground} />
+          <Text style={[styles.reportText, { color: colors.mutedForeground }]}>Report this bug</Text>
         </Pressable>
       </View>
 
@@ -168,6 +194,8 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
 }
 
 const styles = StyleSheet.create({
+  reportButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 16, marginTop: 4 },
+  reportText: { fontSize: 15, fontWeight: '600' },
   container: {
     flex: 1,
     width: '100%',
