@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -17,6 +17,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { DayflowProvider, useDayflow } from '@/context/DayflowContext';
 import { addReminderTapListener, syncReminders } from '@/services/reminders';
 import { syncWidgets } from '@/services/widgets';
+import { AnimatedSplash } from '@/components/AnimatedSplash';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -112,6 +113,22 @@ function RootLayoutNav() {
   );
 }
 
+/** Animated hand-off from the native splash; fades out once saved data is loaded. */
+function SplashOverlay() {
+  const { hydrated } = useDayflow();
+  const [visible, setVisible] = useState(Platform.OS !== 'web');
+
+  useEffect(() => {
+    // The overlay is already painted (same purple + cloud), so swap invisibly.
+    const t = setTimeout(() => void SplashScreen.hideAsync().catch(() => {}), 50);
+    return () => clearTimeout(t);
+  }, []);
+
+  const finish = React.useCallback(() => setVisible(false), []);
+  if (!visible) return null;
+  return <AnimatedSplash ready={hydrated} onFinish={finish} />;
+}
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
@@ -120,11 +137,7 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
+  // The native splash is hidden by <SplashOverlay /> once its animated twin is on screen.
 
   // Keep the native splash/font gate on iOS and Android. On web, render with
   // the system fallback immediately so Expo's server-rendered preview is not blank.
@@ -138,6 +151,7 @@ export default function RootLayout() {
             <GestureHandlerRootView style={{ flex: 1 }}>
               <KeyboardProvider>
                 <RootLayoutNav />
+                <SplashOverlay />
               </KeyboardProvider>
             </GestureHandlerRootView>
           </DayflowProvider>
