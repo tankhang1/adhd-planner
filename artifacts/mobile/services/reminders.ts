@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { fromDateKey } from '@/context/DayflowContext';
 import type { DayTask } from '@/context/DayflowContext';
+import { tr } from '@/i18n';
 
 const supported = Platform.OS !== 'web';
 
@@ -10,12 +11,6 @@ export const ACTION_EXTEND = 'EXTEND_10';
 export const ACTION_DONE = 'MARK_DONE';
 
 if (supported) {
-  // Buttons shown on "time's up" notifications.
-  void Notifications.setNotificationCategoryAsync(OVERRUN_CATEGORY, [
-    { identifier: ACTION_EXTEND, buttonTitle: '+10 min', options: { opensAppToForeground: true } },
-    { identifier: ACTION_DONE, buttonTitle: 'Done', options: { opensAppToForeground: true } },
-  ]).catch(() => {});
-
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowBanner: true,
@@ -68,6 +63,11 @@ function quietAt(d: Date, start: number | null, end: number | null) {
 
 export async function syncReminders(tasks: DayTask[], { enabled, lead, quietStart, quietEnd }: ReminderPrefs) {
   if (!supported) return;
+  // Buttons on "time's up" notifications — re-registered so they follow the app language.
+  await Notifications.setNotificationCategoryAsync(OVERRUN_CATEGORY, [
+    { identifier: ACTION_EXTEND, buttonTitle: tr('notif.actionExtend'), options: { opensAppToForeground: true } },
+    { identifier: ACTION_DONE, buttonTitle: tr('notif.actionDone'), options: { opensAppToForeground: true } },
+  ]).catch(() => {});
   await Notifications.cancelAllScheduledNotificationsAsync();
   if (!enabled) return;
   const perm = await Notifications.getPermissionsAsync();
@@ -91,8 +91,8 @@ export async function syncReminders(tasks: DayTask[], { enabled, lead, quietStar
     if (!quietAt(end, quietStart, quietEnd)) {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: `Time’s up: ${task.title}`,
-          body: 'Wrap up when you can. Need a little longer? Add 10 minutes.',
+          title: tr('notif.endTitle', { title: task.title }),
+          body: tr('notif.endBody'),
           data: { taskId: task.id },
           categoryIdentifier: OVERRUN_CATEGORY,
         },
@@ -102,8 +102,8 @@ export async function syncReminders(tasks: DayTask[], { enabled, lead, quietStar
     if (!quietAt(later, quietStart, quietEnd)) {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: `Still on ${task.title}?`,
-          body: 'That’s okay. Add time and the rest of your day moves with you.',
+          title: tr('notif.stillTitle', { title: task.title }),
+          body: tr('notif.stillBody'),
           data: { taskId: task.id },
           categoryIdentifier: OVERRUN_CATEGORY,
         },
@@ -119,8 +119,8 @@ export async function syncReminders(tasks: DayTask[], { enabled, lead, quietStar
     if (soon.getTime() > now && soon.getTime() < horizon && !quiet(soon)) {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: `In ${lead} minutes: ${task.title}`,
-          body: 'Start wrapping up what you’re doing — no rush.',
+          title: tr('notif.soonTitle', { count: lead, title: task.title }),
+          body: tr('notif.soonBody'),
           data: { taskId: task.id },
         },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: soon },
@@ -133,8 +133,8 @@ export async function syncReminders(tasks: DayTask[], { enabled, lead, quietStar
       if (task.prep && ready.getTime() > now && !quiet(ready)) {
         await Notifications.scheduleNotificationAsync({
           content: {
-            title: `Start getting ready: ${task.title}`,
-            body: `You’ll want to leave in ${task.prep} minutes. Shoes, keys, phone.`,
+            title: tr('notif.readyTitle', { title: task.title }),
+            body: tr('notif.readyBody', { count: task.prep }),
             data: { taskId: task.id },
           },
           trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: ready },
@@ -143,8 +143,8 @@ export async function syncReminders(tasks: DayTask[], { enabled, lead, quietStar
       if (leave.getTime() > now && !quiet(leave)) {
         await Notifications.scheduleNotificationAsync({
           content: {
-            title: `Time to leave for ${task.title}`,
-            body: `It takes about ${task.travel} minutes to get there.`,
+            title: tr('notif.leaveTitle', { title: task.title }),
+            body: tr('notif.leaveBody', { count: task.travel }),
             data: { taskId: task.id },
           },
           trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: leave },
@@ -154,8 +154,8 @@ export async function syncReminders(tasks: DayTask[], { enabled, lead, quietStar
     if (start.getTime() > now && start.getTime() < horizon && !quiet(start)) {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: `Time for: ${task.title}`,
-          body: `${task.duration} minutes. Tap to open the timer.`,
+          title: tr('notif.startTitle', { title: task.title }),
+          body: tr('notif.startBody', { count: task.duration }),
           data: { taskId: task.id },
         },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: start },

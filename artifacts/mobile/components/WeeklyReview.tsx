@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { fromDateKey, useDayflow } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { formatDate, formatDuration, tr } from '@/i18n';
 import { summarizeWeek } from '@/services/weekly';
 import { BuddyDialog, DialogButton } from './BuddyDialog';
 
@@ -16,23 +17,20 @@ export function WeeklyReview({ monday, onClose }: { monday: string; onClose: () 
     onClose();
   };
 
-  const hours = Math.floor(s.minutes / 60);
-  const time = hours ? `${hours}h ${s.minutes % 60}m` : `${s.minutes}m`;
-  const best = s.bestDay ? fromDateKey(s.bestDay).toLocaleDateString('en-US', { weekday: 'long' }) : null;
+  const time = formatDuration(s.minutes);
+  const best = s.bestDay ? formatDate(fromDateKey(s.bestDay), { weekday: 'long' }) : null;
 
-  const title = s.done ? 'Look at your week' : 'A new week is coming';
-  const message = s.done
-    ? 'No scores, no streaks — just a look back at what you did.'
-    : 'Some weeks are about getting through. That counts too.';
+  const title = s.done ? tr('weekly.title') : tr('weekly.titleEmpty');
+  const message = s.done ? tr('weekly.message') : tr('weekly.messageEmpty');
 
   return (
     <BuddyDialog visible mood={s.done ? 'happy' : 'okay'} title={title} message={message} onClose={close}>
       {s.done ? (
         <View style={styles.stats}>
           {[
-            { value: String(s.done), label: s.done === 1 ? 'thing done' : 'things done' },
-            { value: time, label: 'of effort' },
-            { value: String(s.daysShownUp), label: s.daysShownUp === 1 ? 'day you showed up' : 'days you showed up' },
+            { value: String(s.done), label: tr('weekly.statDone', { count: s.done }) },
+            { value: time, label: tr('weekly.statEffort') },
+            { value: String(s.daysShownUp), label: tr('weekly.statDays', { count: s.daysShownUp }) },
           ].map((x) => (
             <View key={x.label} style={[styles.stat, { backgroundColor: colors.muted }]}>
               <Text style={[styles.statValue, { color: colors.foreground }]}>{x.value}</Text>
@@ -43,16 +41,16 @@ export function WeeklyReview({ monday, onClose }: { monday: string; onClose: () 
       ) : null}
 
       <View style={styles.notes}>
-        {best ? <Note text={`${best} was your strongest day.`} /> : null}
+        {best ? <Note text={tr('weekly.bestDay', { day: best })} /> : null}
         {s.lowEnergyDays ? (
-          <Note text={`You had ${s.lowEnergyDays} low-battery ${s.lowEnergyDays === 1 ? 'day' : 'days'} and kept going anyway.`} />
+          <Note text={tr('weekly.lowDays', { count: s.lowEnergyDays })} />
         ) : null}
         {s.oftenMoved[0] ? (
-          <Note text={`“${s.oftenMoved[0]}” keeps getting moved. Maybe start with a tiny first step next week?`} />
+          <Note text={tr('weekly.oftenMoved', { title: s.oftenMoved[0] })} />
         ) : null}
       </View>
 
-      <DialogButton label="Onward to next week" testID="weekly-close" onPress={close} />
+      <DialogButton label={tr('weekly.onward')} testID="weekly-close" onPress={close} />
     </BuddyDialog>
   );
 }

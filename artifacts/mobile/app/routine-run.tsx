@@ -7,6 +7,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDayflow } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { tr, useT } from '@/i18n';
 import { CloudBuddy } from '@/components/CloudBuddy';
 
 const SIZE = 250;
@@ -16,6 +17,7 @@ const C = 2 * Math.PI * R;
 
 export default function RoutineRunScreen() {
   const colors = useColors();
+  useT();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { routines, setRoutineStepDone, resetRoutine, setActiveRoutineId } = useDayflow();
@@ -55,8 +57,8 @@ export default function RoutineRunScreen() {
   if (!routine) {
     return (
       <View style={[styles.screen, { backgroundColor: colors.background, paddingTop: insets.top + 20 }]}>
-        <Text style={{ color: colors.foreground }}>Routine not found.</Text>
-        <Pressable onPress={() => router.back()}><Text style={{ color: colors.primary }}>Go back</Text></Pressable>
+        <Text style={{ color: colors.foreground }}>{tr('routineRun.notFound')}</Text>
+        <Pressable onPress={() => router.back()}><Text style={{ color: colors.primary }}>{tr('routineRun.goBack')}</Text></Pressable>
       </View>
     );
   }
@@ -73,7 +75,7 @@ export default function RoutineRunScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors[routine.tone], paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20 }]}>
       <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close routine" hitSlop={12} onPress={() => router.back()} testID="close-routine">
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('routineRun.close')} hitSlop={12} onPress={() => router.back()} testID="close-routine">
           <Feather name="x" size={24} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.topTitle, { color: colors.foreground }]}>{routine.title}</Text>
@@ -94,9 +96,9 @@ export default function RoutineRunScreen() {
       {finished ? (
         <View style={styles.center}>
           <CloudBuddy mood="happy" size={180} />
-          <Text style={[styles.stepTitle, { color: colors.foreground }]}>Routine done!</Text>
+          <Text style={[styles.stepTitle, { color: colors.foreground }]}>{tr('routineRun.done')}</Text>
           <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-            {routine.steps.filter((s) => s.done).length} of {routine.steps.length} steps done — that counts.
+            {tr('routineRun.doneBody', { done: routine.steps.filter((s) => s.done).length, total: routine.steps.length })}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -107,12 +109,12 @@ export default function RoutineRunScreen() {
             testID="routine-finish"
             style={[styles.primary, { backgroundColor: ink }]}
           >
-            <Text style={styles.primaryText}>Finish</Text>
+            <Text style={styles.primaryText}>{tr('routineRun.finish')}</Text>
           </Pressable>
         </View>
       ) : (
         <View style={styles.center}>
-          <Text style={[styles.label, { color: ink }]}>NOW</Text>
+          <Text style={[styles.label, { color: ink }]}>{tr('routineRun.now')}</Text>
           <Text style={[styles.stepTitle, { color: colors.foreground }]}>{step?.title}</Text>
 
           <View style={styles.ring}>
@@ -135,39 +137,39 @@ export default function RoutineRunScreen() {
             <View style={styles.ringLabel}>
               <Text style={[styles.time, { color: colors.foreground }]} accessibilityLiveRegion="polite">{mm}:{ss}</Text>
               <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-                {left === 0 ? 'Time’s up — move on when you’re ready' : running ? 'take your time' : 'paused'}
+                {left === 0 ? tr('routineRun.timesUp') : running ? tr('routineRun.takeTime') : tr('routineRun.paused')}
               </Text>
             </View>
           </View>
 
           {routine.steps[index + 1] ? (
-            <Text style={[styles.next, { color: colors.mutedForeground }]}>Next: {routine.steps[index + 1].title}</Text>
+            <Text style={[styles.next, { color: colors.mutedForeground }]}>{tr('routineRun.next', { title: routine.steps[index + 1].title })}</Text>
           ) : (
-            <Text style={[styles.next, { color: colors.mutedForeground }]}>Last step — almost there!</Text>
+            <Text style={[styles.next, { color: colors.mutedForeground }]}>{tr('routineRun.lastStep')}</Text>
           )}
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Step done"
+            accessibilityLabel={tr('routineRun.stepDone')}
             onPress={() => advance(true)}
             testID="step-done"
             style={({ pressed }) => [styles.primary, { backgroundColor: ink, opacity: pressed ? 0.85 : 1 }]}
           >
             <Feather name="check" size={20} color="#FFFFFF" />
-            <Text style={styles.primaryText}>Done</Text>
+            <Text style={styles.primaryText}>{tr('routineRun.done2')}</Text>
           </Pressable>
           <View style={styles.secondaryRow}>
             <Pressable accessibilityRole="button" onPress={() => setRunning((r) => !r)} style={styles.secondary} testID="step-pause">
               <Feather name={running ? 'pause' : 'play'} size={16} color={colors.foreground} />
-              <Text style={[styles.secondaryText, { color: colors.foreground }]}>{running ? 'Pause' : 'Resume'}</Text>
+              <Text style={[styles.secondaryText, { color: colors.foreground }]}>{running ? tr('routineRun.pause') : tr('routineRun.resume')}</Text>
             </Pressable>
             <Pressable accessibilityRole="button" onPress={() => setLeft((v) => v + 60)} style={styles.secondary} testID="step-plus">
               <Feather name="plus" size={16} color={colors.foreground} />
-              <Text style={[styles.secondaryText, { color: colors.foreground }]}>1 min</Text>
+              <Text style={[styles.secondaryText, { color: colors.foreground }]}>{tr('routineRun.oneMin')}</Text>
             </Pressable>
             <Pressable accessibilityRole="button" onPress={() => advance(false)} style={styles.secondary} testID="step-skip">
               <Feather name="skip-forward" size={16} color={colors.foreground} />
-              <Text style={[styles.secondaryText, { color: colors.foreground }]}>Skip</Text>
+              <Text style={[styles.secondaryText, { color: colors.foreground }]}>{tr('routineRun.skip')}</Text>
             </Pressable>
           </View>
         </View>

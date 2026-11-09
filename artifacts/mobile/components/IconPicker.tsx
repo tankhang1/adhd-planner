@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ICON_GROUPS } from '@/context/DayflowContext';
 import type { TaskIcon } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { tr } from '@/i18n';
 import { ActivityIcon } from './ActivityIcon';
 
 /** Icon grid grouped by everyday category, so choosing is quick. */
@@ -22,7 +23,7 @@ export function IconPicker({
     <View style={styles.wrap}>
       {ICON_GROUPS.map((group) => (
         <View key={group.label} style={styles.group}>
-          <Text style={[styles.groupLabel, { color: colors.mutedForeground }]}>{group.label}</Text>
+          <Text style={[styles.groupLabel, { color: colors.mutedForeground }]}>{tr(group.label)}</Text>
           <View style={styles.grid}>
             {group.icons.map((icon) => {
               const sel = icon === value;
@@ -30,7 +31,7 @@ export function IconPicker({
                 <Pressable
                   key={icon}
                   accessibilityRole="button"
-                  accessibilityLabel={`Icon ${icon.replace(/-/g, ' ')}`}
+                  accessibilityLabel={tr('addTask.iconA11y', { name: icon.replace(/-/g, ' ') })}
                   accessibilityState={{ selected: sel }}
                   onPress={() => onChange(icon)}
                   testID={`icon-${icon}`}

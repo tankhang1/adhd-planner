@@ -20,7 +20,8 @@
         "NSSupportsLiveActivitiesFrequentUpdates": false,
         "LSApplicationQueriesSchemes": [
           "mailto"
-        ]
+        ],
+        "CFBundleAllowMixedLocalizations": true
       },
       "appleTeamId": "46MQJN23JJ"
     },
@@ -76,11 +77,18 @@
           ]
         }
       ],
-      "expo-mail-composer"
+      "expo-mail-composer",
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": false
+    },
+    "locales": {
+      "en": "./locales/en.json",
+      "de": "./locales/de.json",
+      "ja": "./locales/ja.json",
+      "ko": "./locales/ko.json"
     }
   }
 }

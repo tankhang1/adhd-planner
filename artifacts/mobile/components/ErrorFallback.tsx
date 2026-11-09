@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { tr, useT } from '@/i18n';
 import { Feather } from '@expo/vector-icons';
 import { reloadAppAsync } from 'expo';
 import { CloudBuddy } from './CloudBuddy';
@@ -47,7 +48,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
 
   const reportBug = () => {
     const body =
-      'What were you doing when this happened?\n\n\n' +
+      `${tr('error.reportPrompt')}\n\n\n` +
       '— Technical details —\n' +
       `Platform: ${Platform.OS} ${Platform.Version}\n` +
       `Time: ${new Date().toISOString()}\n\n` +
@@ -85,11 +86,11 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
       <View style={styles.content}>
         <CloudBuddy mood="sleepy" size={150} />
         <Text style={[styles.title, { color: colors.foreground }]}>
-          Oops, something went wrong
+          {tr('error.title')}
         </Text>
 
         <Text style={[styles.message, { color: colors.mutedForeground }]}>
-          It’s not you, it’s us. Your plan is safe on this phone — try again.
+          {tr('error.body')}
         </Text>
 
         <Pressable
@@ -106,18 +107,18 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
           <Text
             style={[styles.buttonText, { color: colors.primaryForeground }]}
           >
-            Try again
+            {tr('error.retry')}
           </Text>
         </Pressable>
 
         <Pressable
           onPress={reportBug}
           accessibilityRole="button"
-          accessibilityHint={`Opens your email app to send the error to ${SUPPORT_EMAIL}`}
+          accessibilityHint={tr('error.reportHint', { email: SUPPORT_EMAIL })}
           style={({ pressed }) => [styles.reportButton, { opacity: pressed ? 0.7 : 1 }]}
         >
           <Feather name="mail" size={16} color={colors.mutedForeground} />
-          <Text style={[styles.reportText, { color: colors.mutedForeground }]}>Report this bug</Text>
+          <Text style={[styles.reportText, { color: colors.mutedForeground }]}>{tr('error.report')}</Text>
         </Pressable>
       </View>
 

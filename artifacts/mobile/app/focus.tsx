@@ -10,6 +10,7 @@ import { useColors } from '@/hooks/useColors';
 import { CloudBuddy } from '@/components/CloudBuddy';
 import { ActivityIcon } from '@/components/ActivityIcon';
 import { BuddyDialog, DialogButton } from '@/components/BuddyDialog';
+import { tr, useT } from '@/i18n';
 import type { Treat } from '@/context/DayflowContext';
 
 const RING_SIZE = 260;
@@ -23,6 +24,7 @@ type Phase = 'idle' | 'tiny' | 'checkpoint' | 'full' | 'done';
 
 export default function FocusScreen() {
   const colors = useColors();
+  useT();
   const insets = useSafeAreaInsets();
   const { taskId, tiny } = useLocalSearchParams<{ taskId?: string; tiny?: string }>();
   const { dayTasks, toggleDayTask, extendTask, logTime, treats, addDayTask, nextFreeStart } = useDayflow();
@@ -110,19 +112,19 @@ export default function FocusScreen() {
   const timeText = `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
 
   const caption =
-    phase === 'idle' ? 'Ready when you are'
-    : phase === 'tiny' ? (running ? 'Just two minutes. That’s all.' : 'Paused')
-    : phase === 'full' ? (running ? 'A little more time' : 'Paused')
+    phase === 'idle' ? tr('focus.ready')
+    : phase === 'tiny' ? (running ? tr('focus.tinyRunning') : tr('focus.paused'))
+    : phase === 'full' ? (running ? tr('focus.running') : tr('focus.paused'))
     : '';
 
   return (
     <View style={[styles.screen, { backgroundColor: colors[tone], paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 }]}>
       <View style={styles.topBar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close focus timer" hitSlop={12} onPress={() => router.back()} testID="close-focus">
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('focus.closeA11y')} hitSlop={12} onPress={() => router.back()} testID="close-focus">
           <Feather name="x" size={24} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.topLabel, { color: colors.foreground }]}>
-          {phase === 'tiny' ? 'TINY START' : 'FOCUS TIME'}
+          {phase === 'tiny' ? tr('focus.labelTiny') : tr('focus.labelFocus')}
         </Text>
         <View style={{ width: 24 }} />
       </View>
@@ -131,38 +133,38 @@ export default function FocusScreen() {
         <View style={[styles.taskIcon, { backgroundColor: colors.card }]}>
           <ActivityIcon name={task?.icon ?? 'target'} size={28} color={ink} />
         </View>
-        <Text style={[styles.taskName, { color: colors.foreground }]}>{task?.title ?? 'Focus session'}</Text>
+        <Text style={[styles.taskName, { color: colors.foreground }]}>{task?.title ?? tr('focus.fallbackTitle')}</Text>
 
         {phase === 'checkpoint' || phase === 'done' ? (
           <View style={styles.checkpoint}>
             <CloudBuddy mood="happy" size={170} />
             <Text style={[styles.prompt, { color: colors.foreground }]}>
-              {phase === 'done' ? 'You did it.' : 'You started!'}
+              {phase === 'done' ? tr('focus.didIt') : tr('focus.started')}
             </Text>
             <Text style={[styles.sub, { color: colors.mutedForeground }]}>
               {phase === 'done'
-                ? `You’ve spent ${Math.round(worked / 60)} min (planned ${task?.duration ?? Math.round(fullSeconds / 60)}). Mark it done, or take a little longer — the rest of your day will move with you.`
-                : 'Starting is the hardest part, and you just did it. Keep going or stop here — both count.'}
+                ? tr('focus.didItBody', { spent: Math.round(worked / 60), planned: task?.duration ?? Math.round(fullSeconds / 60) })
+                : tr('focus.startedBody')}
             </Text>
             {phase === 'checkpoint' ? (
               <>
                 <Pressable accessibilityRole="button" onPress={keepGoing} testID="tiny-keep-going" style={[styles.primary, { backgroundColor: ink }]}>
                   <Feather name="play" size={18} color="#FFFFFF" />
-                  <Text style={styles.primaryText}>Keep going</Text>
+                  <Text style={styles.primaryText}>{tr('focus.keepGoing')}</Text>
                 </Pressable>
                 <Pressable accessibilityRole="button" onPress={() => router.back()} testID="tiny-stop" style={styles.secondary}>
-                  <Text style={[styles.secondaryText, { color: colors.foreground }]}>Stop here — that counted</Text>
+                  <Text style={[styles.secondaryText, { color: colors.foreground }]}>{tr('focus.stopHere')}</Text>
                 </Pressable>
               </>
             ) : (
               <>
                 <Pressable accessibilityRole="button" onPress={markDone} testID="focus-mark-done" style={[styles.primary, { backgroundColor: ink }]}>
                   <Feather name="check" size={18} color="#FFFFFF" />
-                  <Text style={styles.primaryText}>Mark as done</Text>
+                  <Text style={styles.primaryText}>{tr('focus.markDone')}</Text>
                 </Pressable>
-                <Pressable accessibilityRole="button" accessibilityHint="Adds 10 minutes and moves the rest of your day later" onPress={() => extend(10)} testID="focus-plus-10" style={styles.secondary}>
+                <Pressable accessibilityRole="button" accessibilityHint={tr('focus.plus10Hint')} onPress={() => extend(10)} testID="focus-plus-10" style={styles.secondary}>
                   <Feather name="plus" size={16} color={colors.foreground} />
-                  <Text style={[styles.secondaryText, { color: colors.foreground }]}>10 more minutes</Text>
+                  <Text style={[styles.secondaryText, { color: colors.foreground }]}>{tr('focus.moreMinutes')}</Text>
                 </Pressable>
               </>
             )}
@@ -170,7 +172,7 @@ export default function FocusScreen() {
         ) : (
           <>
             <View style={styles.timerWrap}>
-              <Svg width={RING_SIZE} height={RING_SIZE} accessibilityLabel="Focus session progress">
+              <Svg width={RING_SIZE} height={RING_SIZE} accessibilityLabel={tr('focus.progressA11y')}>
                 <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RADIUS} stroke="rgba(255,255,255,0.75)" strokeWidth={STROKE} fill="none" />
                 <Circle
                   cx={RING_SIZE / 2}
@@ -198,42 +200,42 @@ export default function FocusScreen() {
               <>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityHint="Starts a two minute timer. You can stop after that."
+                  accessibilityHint={tr('focus.justTwoHint')}
                   onPress={() => begin('tiny', TINY_SECONDS)}
                   testID="start-tiny"
                   style={[styles.primary, { backgroundColor: ink }]}
                 >
                   <Feather name="feather" size={18} color="#FFFFFF" />
-                  <Text style={styles.primaryText}>Just 2 minutes</Text>
+                  <Text style={styles.primaryText}>{tr('focus.justTwo')}</Text>
                 </Pressable>
                 <Pressable accessibilityRole="button" onPress={() => begin('full', fullSeconds)} testID="start-full" style={styles.secondary}>
                   <Feather name="play" size={16} color={colors.foreground} />
-                  <Text style={[styles.secondaryText, { color: colors.foreground }]}>Full {Math.round(fullSeconds / 60)} min</Text>
+                  <Text style={[styles.secondaryText, { color: colors.foreground }]}>{tr('focus.full', { count: Math.round(fullSeconds / 60) })}</Text>
                 </Pressable>
               </>
             ) : (
               <>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={running ? 'Pause' : 'Resume'}
+                  accessibilityLabel={running ? tr('focus.pause') : tr('focus.resume')}
                   onPress={() => setRunning((r) => !r)}
                   testID="toggle-focus-timer"
                   style={[styles.primary, { backgroundColor: ink }]}
                 >
                   <Feather name={running ? 'pause' : 'play'} size={18} color="#FFFFFF" />
-                  <Text style={styles.primaryText}>{running ? 'Pause' : 'Resume'}</Text>
+                  <Text style={styles.primaryText}>{running ? tr('focus.pause') : tr('focus.resume')}</Text>
                 </Pressable>
                 <View style={styles.inline}>
                   {phase === 'full' ? (
-                    <Pressable accessibilityRole="button" accessibilityHint="Adds 10 minutes and moves the rest of your day later" onPress={() => extend(10)} testID="focus-extend" style={styles.secondary}>
+                    <Pressable accessibilityRole="button" accessibilityHint={tr('focus.plus10Hint')} onPress={() => extend(10)} testID="focus-extend" style={styles.secondary}>
                       <Feather name="plus" size={16} color={colors.foreground} />
-                      <Text style={[styles.secondaryText, { color: colors.foreground }]}>10 min</Text>
+                      <Text style={[styles.secondaryText, { color: colors.foreground }]}>{tr('focus.plus10')}</Text>
                     </Pressable>
                   ) : null}
                   {task ? (
                     <Pressable accessibilityRole="button" onPress={markDone} testID="focus-done" style={styles.secondary}>
                       <Feather name="check-circle" size={16} color={colors.foreground} />
-                      <Text style={[styles.secondaryText, { color: colors.foreground }]}>Done</Text>
+                      <Text style={[styles.secondaryText, { color: colors.foreground }]}>{tr('focus.done')}</Text>
                     </Pressable>
                   ) : null}
                 </View>
@@ -243,21 +245,21 @@ export default function FocusScreen() {
         )}
       </View>
 
-      <Text style={[styles.footer, { color: colors.mutedForeground }]}>If you drift, you can always begin again.</Text>
+      <Text style={[styles.footer, { color: colors.mutedForeground }]}>{tr('focus.footer')}</Text>
 
       <BuddyDialog
         visible={!!treat}
         mood="happy"
-        title="You earned a little break"
-        message={treat ? `How about this: “${treat.title}” · ${treat.minutes} min` : undefined}
+        title={tr('focus.treatTitle')}
+        message={treat ? tr('focus.treatMessage', { title: treat.title, count: treat.minutes }) : undefined}
         onClose={() => {
           setTreat(null);
           router.back();
         }}
       >
-        <DialogButton label="Yes, add it now" testID="treat-yes" onPress={takeTreat} />
+        <DialogButton label={tr('focus.treatYes')} testID="treat-yes" onPress={takeTreat} />
         <DialogButton
-          label="Not now"
+          label={tr('focus.treatNo')}
           variant="text"
           testID="treat-no"
           onPress={() => {

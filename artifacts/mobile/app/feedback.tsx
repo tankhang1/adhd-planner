@@ -21,15 +21,16 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDayflow } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { tr, useT } from '@/i18n';
 import { CloudBuddy } from '@/components/CloudBuddy';
 
 export const FEEDBACK_EMAIL = 'cs.nexatech@gmail.com';
 
 type Kind = 'bug' | 'idea' | 'other';
 const KINDS: Array<{ key: Kind; label: string; icon: keyof typeof Feather.glyphMap; placeholder: string }> = [
-  { key: 'bug', label: 'Something’s broken', icon: 'alert-circle', placeholder: 'What happened? What did you expect instead?\nSteps to make it happen again help a lot.' },
-  { key: 'idea', label: 'An idea', icon: 'zap', placeholder: 'What would make Dayflow work better for you?' },
-  { key: 'other', label: 'Something else', icon: 'message-circle', placeholder: 'Tell us anything — we read every message.' },
+  { key: 'bug', label: 'feedback.bug', icon: 'alert-circle', placeholder: 'feedback.bugPlaceholder' },
+  { key: 'idea', label: 'feedback.idea', icon: 'zap', placeholder: 'feedback.ideaPlaceholder' },
+  { key: 'other', label: 'feedback.other', icon: 'message-circle', placeholder: 'feedback.otherPlaceholder' },
 ];
 
 /** Technical details only — never task titles or other personal content. */
@@ -48,6 +49,7 @@ function deviceInfo(counts: { tasks: number; routines: number; inbox: number }, 
 
 export default function FeedbackScreen() {
   const colors = useColors();
+  useT();
   const insets = useSafeAreaInsets();
   const { dayTasks, routines, inboxTasks, visualMode } = useDayflow();
   const [kind, setKind] = useState<Kind>('bug');
@@ -84,10 +86,7 @@ export default function FeedbackScreen() {
       }
       throw new Error('no mail app');
     } catch {
-      Alert.alert(
-        'Couldn’t open email',
-        `Please write to us at ${FEEDBACK_EMAIL}. Thank you!`,
-      );
+      Alert.alert(tr('feedback.cantOpen'), tr('feedback.cantOpenBody', { email: FEEDBACK_EMAIL }));
     }
   };
 
@@ -97,22 +96,22 @@ export default function FeedbackScreen() {
       style={[styles.screen, { backgroundColor: colors.background, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}
     >
       <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close" hitSlop={12} onPress={() => router.back()} testID="feedback-close">
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('common.close')} hitSlop={12} onPress={() => router.back()} testID="feedback-close">
           <Feather name="x" size={24} color={colors.foreground} />
         </Pressable>
-        <Text style={[styles.topLabel, { color: colors.foreground }]}>FEEDBACK</Text>
+        <Text style={[styles.topLabel, { color: colors.foreground }]}>{tr('feedback.label')}</Text>
         <View style={{ width: 24 }} />
       </View>
 
       {sent ? (
         <View style={styles.center}>
           <CloudBuddy mood="happy" size={170} />
-          <Text style={[styles.title, { color: colors.foreground, textAlign: 'center' }]}>Thank you!</Text>
+          <Text style={[styles.title, { color: colors.foreground, textAlign: 'center' }]}>{tr('feedback.thanks')}</Text>
           <Text style={[styles.sub, { color: colors.mutedForeground, textAlign: 'center' }]}>
-            We read every message and use it to make Dayflow kinder and better.
+            {tr('feedback.thanksBody')}
           </Text>
           <Pressable accessibilityRole="button" onPress={() => router.back()} style={[styles.send, { backgroundColor: colors.primary, alignSelf: 'stretch' }]} testID="feedback-done">
-            <Text style={[styles.sendText, { color: colors.primaryForeground }]}>Back to Dayflow</Text>
+            <Text style={[styles.sendText, { color: colors.primaryForeground }]}>{tr('feedback.backToApp')}</Text>
           </Pressable>
         </View>
       ) : (
@@ -120,9 +119,9 @@ export default function FeedbackScreen() {
           <View style={styles.hero}>
             <CloudBuddy mood="hello" size={110} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.title, { color: colors.foreground }]}>Tell us what’s up</Text>
+              <Text style={[styles.title, { color: colors.foreground }]}>{tr('feedback.title')}</Text>
               <Text style={[styles.sub, { color: colors.mutedForeground }]}>
-                Found a bug or have an idea? A real person on our team reads this.
+                {tr('feedback.sub')}
               </Text>
             </View>
           </View>
@@ -140,7 +139,7 @@ export default function FeedbackScreen() {
                   style={[styles.kind, { backgroundColor: sel ? colors.secondary : colors.card, borderColor: sel ? colors.primary : colors.border }]}
                 >
                   <Feather name={k.icon} size={18} color={sel ? colors.primary : colors.mutedForeground} />
-                  <Text style={[styles.kindText, { color: colors.foreground }]} numberOfLines={2}>{k.label}</Text>
+                  <Text style={[styles.kindText, { color: colors.foreground }]} numberOfLines={2}>{tr(k.label)}</Text>
                 </Pressable>
               );
             })}
@@ -150,25 +149,25 @@ export default function FeedbackScreen() {
             value={message}
             onChangeText={setMessage}
             multiline
-            placeholder={current.placeholder}
+            placeholder={tr(current.placeholder)}
             placeholderTextColor={colors.mutedForeground}
-            accessibilityLabel="Your message"
+            accessibilityLabel={tr('feedback.messageA11y')}
             testID="feedback-message"
             style={[styles.input, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]}
           />
 
           <View style={[styles.infoRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.infoTitle, { color: colors.foreground }]}>Include device info</Text>
+              <Text style={[styles.infoTitle, { color: colors.foreground }]}>{tr('feedback.includeInfo')}</Text>
               <Text style={[styles.infoSub, { color: colors.mutedForeground }]}>
-                App version, phone model and OS. Never your tasks or notes.
+                {tr('feedback.includeInfoSub')}
               </Text>
             </View>
             <Switch
               value={includeInfo}
               onValueChange={setIncludeInfo}
               trackColor={{ true: colors.primary, false: colors.input }}
-              accessibilityLabel="Include device info"
+              accessibilityLabel={tr('feedback.includeInfo')}
               testID="feedback-info"
             />
           </View>
@@ -182,9 +181,9 @@ export default function FeedbackScreen() {
             style={({ pressed }) => [styles.send, { backgroundColor: colors.primary, opacity: !canSend ? 0.4 : pressed ? 0.85 : 1 }]}
           >
             <Feather name="send" size={17} color={colors.primaryForeground} />
-            <Text style={[styles.sendText, { color: colors.primaryForeground }]}>Send</Text>
+            <Text style={[styles.sendText, { color: colors.primaryForeground }]}>{tr('feedback.send')}</Text>
           </Pressable>
-          <Text style={[styles.foot, { color: colors.mutedForeground }]}>Opens your email app · {FEEDBACK_EMAIL}</Text>
+          <Text style={[styles.foot, { color: colors.mutedForeground }]}>{tr('feedback.foot', { email: FEEDBACK_EMAIL })}</Text>
         </ScrollView>
       )}
     </KeyboardAvoidingView>

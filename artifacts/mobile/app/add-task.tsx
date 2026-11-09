@@ -8,6 +8,7 @@ import { REPEAT_PRESETS, TASK_TONES, formatMinutes, fromDateKey, insightFor, isE
 import type { EditScope } from '@/context/DayflowContext';
 import type { TaskIcon, TaskTone } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { formatDate, formatDuration, tr, useT } from '@/i18n';
 import { ActivityIcon } from '@/components/ActivityIcon';
 import { IconPicker } from '@/components/IconPicker';
 
@@ -20,6 +21,7 @@ function nextQuarter() {
 
 export default function AddTaskScreen() {
   const colors = useColors();
+  useT();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { addDayTask, updateDayTask, removeDayTask, dayTasks, selectedDate, seriesFor, nextFreeStart, timeLog } = useDayflow();
@@ -58,10 +60,10 @@ export default function AddTaskScreen() {
   /** For repeating tasks, ask whether a change applies to just this day or the whole series. */
   const askScope = (verb: string, onPick: (scope: EditScope) => void) => {
     if (Platform.OS === 'web') return onPick('series');
-    Alert.alert(`${verb} repeating activity`, 'Change only this day, or this day and every one after?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Only this day', onPress: () => onPick('one') },
-      { text: 'All future days', onPress: () => onPick('series') },
+    Alert.alert(verb === 'Edit' ? tr('addTask.scopeTitleEdit') : tr('addTask.scopeTitleRemove'), tr('addTask.scopeBody'), [
+      { text: tr('common.cancel'), style: 'cancel' },
+      { text: tr('addTask.onlyThisDay'), onPress: () => onPick('one') },
+      { text: tr('addTask.allFuture'), onPress: () => onPick('series') },
     ]);
   };
 
@@ -95,21 +97,21 @@ export default function AddTaskScreen() {
     };
     if (series) return askScope('Remove', doIt);
     if (Platform.OS === 'web') return doIt();
-    Alert.alert('Remove this activity?', existing.title, [
-      { text: 'Keep it', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => doIt() },
+    Alert.alert(tr('addTask.removeConfirm'), existing.title, [
+      { text: tr('addTask.keepIt'), style: 'cancel' },
+      { text: tr('addTask.removeBtn'), style: 'destructive', onPress: () => doIt() },
     ]);
   };
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background, paddingBottom: insets.bottom + 16 }]}>
       <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Cancel" onPress={() => router.back()} hitSlop={12} testID="cancel-add">
-          <Text style={[styles.topBtn, { color: colors.mutedForeground }]}>Cancel</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('common.cancel')} onPress={() => router.back()} hitSlop={12} testID="cancel-add">
+          <Text style={[styles.topBtn, { color: colors.mutedForeground }]}>{tr('common.cancel')}</Text>
         </Pressable>
-        <Text style={[styles.topTitle, { color: colors.foreground }]}>{existing ? 'Edit activity' : 'New activity'}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Save activity" disabled={!canSave} onPress={save} hitSlop={12} testID="save-add">
-          <Text style={[styles.topBtn, { color: colors.primary, opacity: canSave ? 1 : 0.4, fontWeight: '700' }]}>Save</Text>
+        <Text style={[styles.topTitle, { color: colors.foreground }]}>{existing ? tr('addTask.editTitle') : tr('addTask.newTitle')}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('addTask.saveA11y')} disabled={!canSave} onPress={save} hitSlop={12} testID="save-add">
+          <Text style={[styles.topBtn, { color: colors.primary, opacity: canSave ? 1 : 0.4, fontWeight: '700' }]}>{tr('common.save')}</Text>
         </Pressable>
       </View>
 
@@ -122,33 +124,33 @@ export default function AddTaskScreen() {
           <TextInput
             value={title}
             onChangeText={setTitle}
-            placeholder="What do you want to do?"
+            placeholder={tr('addTask.placeholder')}
             placeholderTextColor={colors.mutedForeground}
             autoFocus={!existing}
             returnKeyType="done"
             onSubmitEditing={save}
-            accessibilityLabel="Activity name"
+            accessibilityLabel={tr('addTask.nameA11y')}
             testID="add-title"
             style={[styles.input, { color: colors.foreground }]}
           />
         </View>
 
         <Text style={[styles.label, { color: colors.mutedForeground }]}>
-          {fromDateKey(date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase()} · START
+          {formatDate(fromDateKey(date), { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase()} · {tr('addTask.start')}
         </Text>
         <View style={[styles.timeRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Pressable accessibilityLabel="15 minutes earlier" onPress={() => shift(-15)} style={[styles.stepBtn, { backgroundColor: colors.secondary }]} testID="time-minus">
+          <Pressable accessibilityLabel={tr('addTask.earlier')} onPress={() => shift(-15)} style={[styles.stepBtn, { backgroundColor: colors.secondary }]} testID="time-minus">
             <Feather name="minus" size={18} color={colors.secondaryForeground} />
           </Pressable>
           <Text style={[styles.timeValue, { color: colors.foreground }]}>
             {formatMinutes(start)} – {formatMinutes(start + duration)}
           </Text>
-          <Pressable accessibilityLabel="15 minutes later" onPress={() => shift(15)} style={[styles.stepBtn, { backgroundColor: colors.secondary }]} testID="time-plus">
+          <Pressable accessibilityLabel={tr('addTask.later')} onPress={() => shift(15)} style={[styles.stepBtn, { backgroundColor: colors.secondary }]} testID="time-plus">
             <Feather name="plus" size={18} color={colors.secondaryForeground} />
           </Pressable>
         </View>
 
-        <Text style={[styles.label, { color: colors.mutedForeground }]}>REPEAT</Text>
+        <Text style={[styles.label, { color: colors.mutedForeground }]}>{tr('addTask.repeat')}</Text>
         <View style={styles.wrap}>
           {REPEAT_PRESETS.map((p) => {
             const sel = sameDays(p.days, repeatDays);
@@ -161,20 +163,20 @@ export default function AddTaskScreen() {
                 testID={`repeat-${p.key}`}
                 style={[styles.chip, { backgroundColor: sel ? colors.primary : colors.card, borderColor: sel ? colors.primary : colors.border }]}
               >
-                <Text style={[styles.chipText, { color: sel ? colors.primaryForeground : colors.foreground }]}>{p.label}</Text>
+                <Text style={[styles.chipText, { color: sel ? colors.primaryForeground : colors.foreground }]}>{tr(p.label)}</Text>
               </Pressable>
             );
           })}
         </View>
         <View style={styles.weekRow}>
-          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => {
+          {[0, 1, 2, 3, 4, 5, 6].map((i) => formatDate(new Date(2026, 10, 8 + i), { weekday: 'narrow' })).map((d, i) => {
             const on = repeatDays.includes(i);
             return (
               <Pressable
                 key={i}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: on }}
-                accessibilityLabel={['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][i]}
+                accessibilityLabel={formatDate(new Date(2026, 10, 8 + i), { weekday: 'long' })}
                 onPress={() => setRepeatDays((cur) => (on ? cur.filter((x) => x !== i) : [...cur, i]))}
                 testID={`repeat-day-${i}`}
                 style={[styles.dayDot, { backgroundColor: on ? colors.secondary : colors.card, borderColor: on ? colors.primary : colors.border }]}
@@ -185,7 +187,7 @@ export default function AddTaskScreen() {
           })}
         </View>
 
-        <Text style={[styles.label, { color: colors.mutedForeground }]}>DURATION</Text>
+        <Text style={[styles.label, { color: colors.mutedForeground }]}>{tr('addTask.duration')}</Text>
         <View style={styles.wrap}>
           {DURATIONS.map((d) => {
             const sel = d === duration;
@@ -199,7 +201,7 @@ export default function AddTaskScreen() {
                 style={[styles.chip, { backgroundColor: sel ? colors.primary : colors.card, borderColor: sel ? colors.primary : colors.border }]}
               >
                 <Text style={[styles.chipText, { color: sel ? colors.primaryForeground : colors.foreground }]}>
-                  {d < 60 ? `${d}m` : `${d / 60}h`.replace('1.5h', '1h 30m')}
+                  {formatDuration(d)}
                 </Text>
               </Pressable>
             );
@@ -215,20 +217,20 @@ export default function AddTaskScreen() {
             <Feather name="clock" size={16} color={colors.secondaryForeground} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.insightText, { color: colors.foreground }]}>
-                Last {insight.samples} times, this took about {insight.typicalActual} min.
+                {tr('addTask.insight', { count: insight.samples, minutes: insight.typicalActual })}
               </Text>
               <Text style={[styles.insightSub, { color: colors.mutedForeground }]}>
-                {insight.typicalActual > duration ? 'Giving it more time could make your day feel calmer.' : 'You might need less time than you think.'}
+                {insight.typicalActual > duration ? tr('addTask.insightMore') : tr('addTask.insightLess')}
               </Text>
             </View>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Use ${insight.typicalActual} minutes`}
+              accessibilityLabel={tr('addTask.useInsightA11y', { count: insight.typicalActual })}
               onPress={() => setDuration(insight.typicalActual)}
               testID="use-insight"
               style={[styles.insightBtn, { backgroundColor: colors.primary }]}
             >
-              <Text style={{ color: colors.primaryForeground, fontWeight: '700', fontSize: 13 }}>Use {insight.typicalActual}m</Text>
+              <Text style={{ color: colors.primaryForeground, fontWeight: '700', fontSize: 13 }}>{tr('addTask.useInsight', { count: insight.typicalActual })}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -236,24 +238,24 @@ export default function AddTaskScreen() {
         <View style={[styles.tripBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.tripHead}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.insightText, { color: colors.foreground }]}>I need to go somewhere</Text>
+              <Text style={[styles.insightText, { color: colors.foreground }]}>{tr('addTask.trip')}</Text>
               <Text style={[styles.insightSub, { color: colors.mutedForeground }]}>
                 {trip
-                  ? `Get ready at ${formatMinutes(trip.getReady)} · leave at ${formatMinutes(trip.leave)}`
-                  : 'We’ll tell you when to get ready and when to leave.'}
+                  ? tr('addTask.tripOn', { ready: formatMinutes(trip.getReady), leave: formatMinutes(trip.leave) })
+                  : tr('addTask.tripOff')}
               </Text>
             </View>
             <Switch
               value={travel > 0}
               onValueChange={(on) => setTravel(on ? 20 : 0)}
               trackColor={{ true: colors.primary, false: colors.input }}
-              accessibilityLabel="I need to go somewhere"
+              accessibilityLabel={tr('addTask.trip')}
               testID="toggle-trip"
             />
           </View>
           {travel > 0 ? (
             <>
-              <Text style={[styles.tripLabel, { color: colors.mutedForeground }]}>Travel time</Text>
+              <Text style={[styles.tripLabel, { color: colors.mutedForeground }]}>{tr('addTask.travel')}</Text>
               <View style={styles.wrap}>
                 {[10, 20, 30, 45, 60].map((m) => {
                   const sel = m === travel;
@@ -266,12 +268,12 @@ export default function AddTaskScreen() {
                       testID={`travel-${m}`}
                       style={[styles.chip, { backgroundColor: sel ? colors.primary : colors.muted, borderColor: sel ? colors.primary : colors.muted }]}
                     >
-                      <Text style={[styles.chipText, { color: sel ? colors.primaryForeground : colors.foreground }]}>{m < 60 ? `${m}m` : '1h'}</Text>
+                      <Text style={[styles.chipText, { color: sel ? colors.primaryForeground : colors.foreground }]}>{formatDuration(m)}</Text>
                     </Pressable>
                   );
                 })}
               </View>
-              <Text style={[styles.tripLabel, { color: colors.mutedForeground }]}>Time to get ready</Text>
+              <Text style={[styles.tripLabel, { color: colors.mutedForeground }]}>{tr('addTask.prep')}</Text>
               <View style={styles.wrap}>
                 {[5, 10, 15, 30].map((m) => {
                   const sel = m === prep;
@@ -284,7 +286,7 @@ export default function AddTaskScreen() {
                       testID={`prep-${m}`}
                       style={[styles.chip, { backgroundColor: sel ? colors.primary : colors.muted, borderColor: sel ? colors.primary : colors.muted }]}
                     >
-                      <Text style={[styles.chipText, { color: sel ? colors.primaryForeground : colors.foreground }]}>{m}m</Text>
+                      <Text style={[styles.chipText, { color: sel ? colors.primaryForeground : colors.foreground }]}>{formatDuration(m)}</Text>
                     </Pressable>
                   );
                 })}
@@ -295,11 +297,11 @@ export default function AddTaskScreen() {
 
         <View style={[styles.essentialRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.insightText, { color: colors.foreground }]}>Essential</Text>
+            <Text style={[styles.insightText, { color: colors.foreground }]}>{tr('addTask.essential')}</Text>
             <Text style={[styles.insightSub, { color: colors.mutedForeground }]}>
               {autoEssential
-                ? 'Meds, food, water and sleep are always kept on low-energy days.'
-                : 'Keep this even on low-energy days.'}
+                ? tr('addTask.essentialAuto')
+                : tr('addTask.essentialManual')}
             </Text>
           </View>
           <Switch
@@ -307,18 +309,18 @@ export default function AddTaskScreen() {
             disabled={autoEssential}
             onValueChange={setEssentialFlag}
             trackColor={{ true: colors.primary, false: colors.input }}
-            accessibilityLabel="Essential"
+            accessibilityLabel={tr('addTask.essential')}
             testID="toggle-essential"
           />
         </View>
 
-        <Text style={[styles.label, { color: colors.mutedForeground }]}>COLOR</Text>
+        <Text style={[styles.label, { color: colors.mutedForeground }]}>{tr('addTask.color')}</Text>
         <View style={styles.wrap}>
           {TASK_TONES.map((t) => (
             <Pressable
               key={t}
               accessibilityRole="button"
-              accessibilityLabel={`Color ${t}`}
+              accessibilityLabel={tr('addTask.colorA11y', { name: t })}
               accessibilityState={{ selected: t === tone }}
               onPress={() => setTone(t)}
               testID={`tone-${t}`}
@@ -327,19 +329,19 @@ export default function AddTaskScreen() {
           ))}
         </View>
 
-        <Text style={[styles.label, { color: colors.mutedForeground }]}>ICON</Text>
+        <Text style={[styles.label, { color: colors.mutedForeground }]}>{tr('addTask.icon')}</Text>
         <IconPicker value={icon} onChange={setIcon} fill={colors[tone]} ink={ink} />
 
         {existing ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Remove activity"
+            accessibilityLabel={tr('addTask.remove')}
             onPress={remove}
             testID="remove-task"
             style={({ pressed }) => [styles.remove, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
           >
             <Feather name="trash-2" size={17} color={colors.destructive} />
-            <Text style={{ color: colors.destructive, fontWeight: '700', fontSize: 15 }}>Remove activity</Text>
+            <Text style={{ color: colors.destructive, fontWeight: '700', fontSize: 15 }}>{tr('addTask.remove')}</Text>
           </Pressable>
         ) : null}
       </ScrollView>

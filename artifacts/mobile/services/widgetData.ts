@@ -1,4 +1,5 @@
 import palette from '@/constants/colors';
+import { tr } from '@/i18n';
 import { fromDateKey, toDateKey } from '@/context/DayflowContext';
 import type { DayTask, TaskIcon } from '@/context/DayflowContext';
 
@@ -62,6 +63,14 @@ export interface WidgetTask {
 export interface WidgetPayload {
   updatedAt: number;
   tasks: WidgetTask[];
+  /** UI strings in the user's language, read by the iOS widget & Live Activity. */
+  labels: Record<string, string>;
+}
+
+/** Translated strings for native widgets. `{{title}}` / `{{time}}` are filled in Swift. */
+export function widgetLabels(): Record<string, string> {
+  const keys = ['now', 'next', 'later', 'allClear', 'nothingElse', 'enjoy', 'at', 'timesUp', 'nextTask', 'over', 'overrunHint', 'quickAdd'];
+  return Object.fromEntries(keys.map((k) => [k, tr(`widget.${k}`, { title: '{{title}}', time: '{{time}}' })]));
 }
 
 const toUnix = (task: DayTask, minutes: number) => {
@@ -78,6 +87,7 @@ export function buildWidgetPayload(tasks: DayTask[], now = new Date()): WidgetPa
   const tomorrow = toDateKey(t);
   const c = palette.light;
   return {
+    labels: widgetLabels(),
     updatedAt: Math.floor(now.getTime() / 1000),
     tasks: tasks
       .filter((x) => (x.date === today || x.date === tomorrow) && !x.parked)

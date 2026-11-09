@@ -6,18 +6,19 @@ import Animated, { FadeIn, FadeInDown, FadeOut, useReducedMotion } from 'react-n
 import { isEssential, todayKey, useDayflow } from '@/context/DayflowContext';
 import type { EnergyLevel } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { tr, useT } from '@/i18n';
 import { CloudBuddy } from './CloudBuddy';
 import type { BuddyMood } from './CloudBuddy';
 
 const OPTIONS: Array<{ level: EnergyLevel; mood: BuddyMood; label: string; sub: string }> = [
-  { level: 'low', mood: 'sleepy', label: 'Running low', sub: 'Tired, foggy or overwhelmed' },
-  { level: 'okay', mood: 'okay', label: 'Doing okay', sub: 'Not great, not bad' },
-  { level: 'high', mood: 'happy', label: 'Feeling good', sub: 'Ready to get going' },
+  { level: 'low', mood: 'sleepy', label: 'energy.lowLabel', sub: 'energy.lowSub' },
+  { level: 'okay', mood: 'okay', label: 'energy.okayLabel', sub: 'energy.okaySub' },
+  { level: 'high', mood: 'happy', label: 'energy.highLabel', sub: 'energy.highSub' },
 ];
 
 const greeting = () => {
   const h = new Date().getHours();
-  return h < 12 ? 'Good morning!' : h < 18 ? 'Hi there!' : 'Good evening!';
+  return h < 12 ? tr('energy.morning') : h < 18 ? tr('energy.hi') : tr('energy.evening');
 };
 
 /**
@@ -26,6 +27,7 @@ const greeting = () => {
  */
 export function EnergyCheckIn({ forceOpen, onClose, blocked }: { forceOpen?: boolean; onClose?: () => void; blocked?: boolean }) {
   const colors = useColors();
+  useT();
   const reduce = useReducedMotion();
   const {
     hydrated, onboarded, energyFor, setEnergy, markEnergyHandled, startSurvivalDay, lightenDay, tasksFor,
@@ -75,7 +77,7 @@ export function EnergyCheckIn({ forceOpen, onClose, blocked }: { forceOpen?: boo
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close} statusBarTranslucent>
-      <Pressable style={styles.backdrop} onPress={close} accessibilityLabel="Close check-in" />
+      <Pressable style={styles.backdrop} onPress={close} accessibilityLabel={tr('energy.close')} />
       <View style={styles.center} pointerEvents="box-none">
         <View style={[styles.card, { backgroundColor: colors.card }]} accessibilityViewIsModal>
           <CloudBuddy mood={mood} size={150} />
@@ -83,13 +85,13 @@ export function EnergyCheckIn({ forceOpen, onClose, blocked }: { forceOpen?: boo
           {!picked ? (
             <Animated.View entering={enter} exiting={reduce ? undefined : FadeOut} style={styles.body}>
               <Text style={[styles.title, { color: colors.foreground }]}>{greeting()}</Text>
-              <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>How’s your energy today?</Text>
+              <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{tr('energy.question')}</Text>
               <View style={styles.options}>
                 {OPTIONS.map((o) => (
                   <Pressable
                     key={o.level}
                     accessibilityRole="button"
-                    accessibilityLabel={`${o.label}. ${o.sub}`}
+                    accessibilityLabel={`${tr(o.label)}. ${tr(o.sub)}`}
                     onPress={() => choose(o.level)}
                     testID={`energy-${o.level}`}
                     style={({ pressed }) => [
@@ -101,27 +103,27 @@ export function EnergyCheckIn({ forceOpen, onClose, blocked }: { forceOpen?: boo
                       <CloudBuddy mood={o.mood} size={52} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.optionLabel, { color: colors.foreground }]}>{o.label}</Text>
-                      <Text style={[styles.optionSub, { color: colors.mutedForeground }]}>{o.sub}</Text>
+                      <Text style={[styles.optionLabel, { color: colors.foreground }]}>{tr(o.label)}</Text>
+                      <Text style={[styles.optionSub, { color: colors.mutedForeground }]}>{tr(o.sub)}</Text>
                     </View>
                   </Pressable>
                 ))}
               </View>
               <Pressable accessibilityRole="button" onPress={close} testID="energy-skip" style={styles.skip}>
-                <Text style={[styles.skipText, { color: colors.mutedForeground }]}>Skip for today</Text>
+                <Text style={[styles.skipText, { color: colors.mutedForeground }]}>{tr('energy.skip')}</Text>
               </Pressable>
             </Animated.View>
           ) : (
             <Animated.View entering={reduce ? undefined : FadeIn.duration(240)} style={styles.body}>
               {picked === 'low' && nonEssential.length > 0 ? (
                 <>
-                  <Text style={[styles.title, { color: colors.foreground }]}>That’s okay.</Text>
+                  <Text style={[styles.title, { color: colors.foreground }]}>{tr('energy.lowTitle')}</Text>
                   <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-                    Low days happen. Want to make today a little smaller?
+                    {tr('energy.lowMessage')}
                   </Text>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityHint="Keeps meds, food, water, sleep and essentials. Everything else is set aside, not deleted."
+                    accessibilityHint={tr('energy.basicsHint')}
                     onPress={() => {
                       startSurvivalDay(date);
                       markEnergyHandled(date);
@@ -132,7 +134,7 @@ export function EnergyCheckIn({ forceOpen, onClose, blocked }: { forceOpen?: boo
                     style={[styles.primary, { backgroundColor: colors.primary }]}
                   >
                     <MaterialCommunityIcons name="lifebuoy" size={18} color={colors.primaryForeground} />
-                    <Text style={[styles.primaryText, { color: colors.primaryForeground }]}>Just the basics today</Text>
+                    <Text style={[styles.primaryText, { color: colors.primaryForeground }]}>{tr('energy.basics')}</Text>
                   </Pressable>
                   {nonEssential.length > 2 ? (
                     <Pressable
@@ -146,7 +148,7 @@ export function EnergyCheckIn({ forceOpen, onClose, blocked }: { forceOpen?: boo
                       style={[styles.secondary, { backgroundColor: colors.muted }]}
                     >
                       <Text style={[styles.secondaryText, { color: colors.foreground }]}>
-                        Keep 2 things, move {nonEssential.length - 2} to tomorrow
+                        {tr('energy.keepTwo', { count: nonEssential.length - 2 })}
                       </Text>
                     </Pressable>
                   ) : null}
@@ -159,20 +161,20 @@ export function EnergyCheckIn({ forceOpen, onClose, blocked }: { forceOpen?: boo
                     testID="energy-keep"
                     style={styles.skip}
                   >
-                    <Text style={[styles.skipText, { color: colors.mutedForeground }]}>Keep my plan</Text>
+                    <Text style={[styles.skipText, { color: colors.mutedForeground }]}>{tr('energy.keepPlan')}</Text>
                   </Pressable>
                 </>
               ) : (
                 <>
                   <Text style={[styles.title, { color: colors.foreground }]}>
-                    {picked === 'high' ? 'Love that!' : picked === 'okay' ? 'Okay is enough.' : 'Go gently today.'}
+                    {picked === 'high' ? tr('energy.highTitle') : picked === 'okay' ? tr('energy.okayTitle') : tr('energy.gentleTitle')}
                   </Text>
                   <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
                     {picked === 'high' && longest
-                      ? `Good energy is a nice moment for the big one: “${longest.title}”. Only if it feels right.`
+                      ? tr('energy.highMessage', { title: longest.title })
                       : picked === 'okay'
-                        ? 'One step at a time. Your plan is ready when you are.'
-                        : 'Nothing extra planned — rest counts too.'}
+                        ? tr('energy.okayMessage')
+                        : tr('energy.gentleMessage')}
                   </Text>
                   <Pressable
                     accessibilityRole="button"
@@ -183,7 +185,7 @@ export function EnergyCheckIn({ forceOpen, onClose, blocked }: { forceOpen?: boo
                     testID="energy-done"
                     style={[styles.primary, { backgroundColor: colors.primary }]}
                   >
-                    <Text style={[styles.primaryText, { color: colors.primaryForeground }]}>Let’s go</Text>
+                    <Text style={[styles.primaryText, { color: colors.primaryForeground }]}>{tr('common.letsGo')}</Text>
                   </Pressable>
                 </>
               )}

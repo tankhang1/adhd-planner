@@ -9,6 +9,7 @@ import { useColors } from '@/hooks/useColors';
 import { CloudBuddy } from '@/components/CloudBuddy';
 import { ActivityIcon } from '@/components/ActivityIcon';
 import { currentOrNext, pickForMe } from '@/services/pickForMe';
+import { formatDuration, tr, useT } from '@/i18n';
 import type { Suggestion } from '@/services/pickForMe';
 
 const nowMinutes = () => {
@@ -23,6 +24,7 @@ const nowMinutes = () => {
  */
 export default function OneThingScreen() {
   const colors = useColors();
+  useT();
   const insets = useSafeAreaInsets();
   const { pick } = useLocalSearchParams<{ pick?: string }>();
   const pickMode = pick === '1';
@@ -34,7 +36,7 @@ export default function OneThingScreen() {
   const suggestion: Suggestion | null = useMemo(() => {
     if (pickMode) return pickForMe(today, inboxTasks, nowMinutes(), exclude);
     const t = currentOrNext(today.filter((x) => !exclude.includes(x.id)), nowMinutes());
-    return t ? { kind: 'task', task: t, reason: '' } : null;
+    return t ? { kind: 'task' as const, task: t, reason: '' } : null;
   }, [pickMode, today, inboxTasks, exclude]);
 
   const task = suggestion?.kind === 'task' ? suggestion.task : undefined;
@@ -69,10 +71,10 @@ export default function OneThingScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: task ? colors[tone] : colors.background, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 }]}>
       <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to full plan" hitSlop={12} onPress={() => router.back()} testID="one-thing-close">
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('oneThing.closeA11y')} hitSlop={12} onPress={() => router.back()} testID="one-thing-close">
           <Feather name="x" size={24} color={colors.foreground} />
         </Pressable>
-        <Text style={[styles.topLabel, { color: colors.foreground }]}>{pickMode ? 'PICKED FOR YOU' : 'JUST THIS ONE THING'}</Text>
+        <Text style={[styles.topLabel, { color: colors.foreground }]}>{pickMode ? tr('oneThing.labelPick') : tr('oneThing.labelOne')}</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -81,7 +83,7 @@ export default function OneThingScreen() {
           {doneCount > 0 ? (
             <View style={[styles.doneChip, { backgroundColor: colors.card }]}>
               <Feather name="check" size={14} color={colors.sageInk} />
-              <Text style={[styles.doneChipText, { color: colors.foreground }]}>{doneCount} done just now</Text>
+              <Text style={[styles.doneChipText, { color: colors.foreground }]}>{tr('oneThing.doneJustNow', { count: doneCount })}</Text>
             </View>
           ) : null}
           <View style={[styles.icon, { backgroundColor: colors.card }]}>
@@ -90,25 +92,25 @@ export default function OneThingScreen() {
           <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
           {task ? (
             <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-              {formatMinutes(task.start)} · {task.duration} min
+              {formatMinutes(task.start)} · {formatDuration(task.duration)}
             </Text>
           ) : null}
-          {suggestion.reason ? <Text style={[styles.reason, { color: colors.mutedForeground }]}>{suggestion.reason}</Text> : null}
+          {suggestion.reason ? <Text style={[styles.reason, { color: colors.mutedForeground }]}>{tr(suggestion.reason, suggestion.reasonParams)}</Text> : null}
 
           <Pressable accessibilityRole="button" onPress={startTiny} testID="one-thing-start" style={[styles.primary, { backgroundColor: task ? ink : colors.primary }]}>
             <Feather name="feather" size={18} color="#FFFFFF" />
-            <Text style={styles.primaryText}>{task ? 'Start with 2 minutes' : 'Do it now'}</Text>
+            <Text style={styles.primaryText}>{task ? tr('oneThing.startTiny') : tr('oneThing.doItNow')}</Text>
           </Pressable>
           <View style={styles.row}>
             {task ? (
               <Pressable accessibilityRole="button" onPress={done} testID="one-thing-done" style={styles.secondary}>
                 <Feather name="check-circle" size={16} color={colors.foreground} />
-                <Text style={[styles.secondaryText, { color: colors.foreground }]}>Already done</Text>
+                <Text style={[styles.secondaryText, { color: colors.foreground }]}>{tr('oneThing.alreadyDone')}</Text>
               </Pressable>
             ) : null}
             <Pressable accessibilityRole="button" onPress={skip} testID="one-thing-skip" style={styles.secondary}>
               <Feather name={pickMode ? 'shuffle' : 'skip-forward'} size={16} color={colors.foreground} />
-              <Text style={[styles.secondaryText, { color: colors.foreground }]}>{pickMode ? 'Another one' : 'Not now'}</Text>
+              <Text style={[styles.secondaryText, { color: colors.foreground }]}>{pickMode ? tr('oneThing.another') : tr('oneThing.notNow')}</Text>
             </Pressable>
           </View>
         </View>
@@ -116,19 +118,19 @@ export default function OneThingScreen() {
         <View style={styles.center}>
           <CloudBuddy mood={exclude.length ? 'okay' : 'happy'} size={170} />
           <Text style={[styles.title, { color: colors.foreground }]}>
-            {exclude.length ? 'That’s everything for now' : 'Nothing left to do'}
+            {exclude.length ? tr('oneThing.allSkipped') : tr('oneThing.nothingLeft')}
           </Text>
-          <Text style={[styles.reason, { color: colors.mutedForeground }]}>Rest is allowed. You can come back anytime.</Text>
+          <Text style={[styles.reason, { color: colors.mutedForeground }]}>{tr('oneThing.rest')}</Text>
           {exclude.length ? (
             <Pressable accessibilityRole="button" onPress={() => setExclude([])} style={styles.secondary} testID="one-thing-reset">
               <Feather name="rotate-ccw" size={16} color={colors.foreground} />
-              <Text style={[styles.secondaryText, { color: colors.foreground }]}>Show skipped again</Text>
+              <Text style={[styles.secondaryText, { color: colors.foreground }]}>{tr('oneThing.showSkipped')}</Text>
             </Pressable>
           ) : null}
         </View>
       )}
 
-      <Text style={[styles.footer, { color: colors.mutedForeground }]}>Everything else can wait.</Text>
+      <Text style={[styles.footer, { color: colors.mutedForeground }]}>{tr('oneThing.footer')}</Text>
     </View>
   );
 }

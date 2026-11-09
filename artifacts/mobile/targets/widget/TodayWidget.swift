@@ -67,7 +67,7 @@ struct NowBlock: View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 8) {
         TaskIcon(task: task)
-        Text(isNow ? "NOW" : "NEXT")
+        Text(isNow ? L("now", "NOW") : L("next", "NEXT"))
           .font(.system(size: 11, weight: .heavy))
           .foregroundStyle(Color(hex: task.ink))
         Spacer(minLength: 0)
@@ -87,7 +87,7 @@ struct NowBlock: View {
           .font(.system(size: 12, weight: .semibold).monospacedDigit())
           .foregroundStyle(brandMuted)
       } else {
-        Text("at \(timeLabel(task.startDate))")
+        Text(L("at", "at {{time}}", time: timeLabel(task.startDate)))
           .font(.system(size: 12, weight: .semibold))
           .foregroundStyle(brandMuted)
       }
@@ -101,10 +101,10 @@ struct EmptyBlock: View {
       Image(systemName: "checkmark.circle.fill")
         .font(.system(size: 24))
         .foregroundStyle(Color(hex: "#1E9E62"))
-      Text("All clear")
+      Text(L("allClear", "All clear").capitalized)
         .font(.system(size: 15, weight: .bold, design: .rounded))
         .foregroundStyle(brandInk)
-      Text("Nothing else planned.")
+      Text(L("nothingElse", "Nothing else planned"))
         .font(.system(size: 12))
         .foregroundStyle(brandMuted)
     }
@@ -127,11 +127,11 @@ struct TodayWidgetView: View {
           if entry.current != nil {
             Text(timerInterval: t.startDate...t.endDate, countsDown: true).font(.caption).monospacedDigit()
           } else {
-            Text("Next · \(timeLabel(t.startDate))").font(.caption)
+            Text(L("nextTask", "Next: {{title}}", title: timeLabel(t.startDate))).font(.caption)
           }
         }
       } else {
-        Label("All clear", systemImage: "checkmark.circle")
+        Label(L("allClear", "All clear").capitalized, systemImage: "checkmark.circle")
       }
     case .accessoryCircular:
       if let t = entry.current {
@@ -144,9 +144,9 @@ struct TodayWidgetView: View {
       }
     case .accessoryInline:
       if let t = primary {
-        Text(entry.current != nil ? "Now: \(t.title)" : "Next: \(t.title) \(timeLabel(t.startDate))")
+        Text(entry.current != nil ? "\(L("now", "NOW").capitalized): \(t.title)" : L("nextTask", "Next: {{title}}", title: "\(t.title) \(timeLabel(t.startDate))"))
       } else {
-        Text("All clear")
+        Text(L("allClear", "All clear").capitalized)
       }
     case .systemMedium:
       HStack(alignment: .top, spacing: 14) {
@@ -156,7 +156,7 @@ struct TodayWidgetView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         VStack(alignment: .leading, spacing: 8) {
           HStack {
-            Text("LATER")
+            Text(L("later", "LATER"))
               .font(.system(size: 11, weight: .heavy))
               .foregroundStyle(brandMuted)
             Spacer(minLength: 0)
@@ -168,7 +168,7 @@ struct TodayWidgetView: View {
                 .frame(width: 26, height: 26)
                 .background(brandPrimary, in: Circle())
             }
-            .accessibilityLabel("Quick add to Inbox")
+            .accessibilityLabel(L("quickAdd", "Quick add to Inbox"))
           }
           ForEach(rest.prefix(3), id: \.id) { t in
             HStack(spacing: 8) {
@@ -180,7 +180,7 @@ struct TodayWidgetView: View {
             }
           }
           if rest.isEmpty {
-            Text("Nothing more today").font(.system(size: 12)).foregroundStyle(brandMuted)
+            Text(L("nothingElse", "Nothing else planned")).font(.system(size: 12)).foregroundStyle(brandMuted)
           }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

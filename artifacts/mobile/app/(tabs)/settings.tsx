@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { LANGUAGES, deviceLanguage, useT } from '@/i18n';
+import i18n from '@/i18n';
+import { LanguageSheet } from '@/components/LanguageSheet';
 import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { requestReminderPermission } from '@/services/reminders';
@@ -29,7 +32,7 @@ function ModeOption({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${title} appearance`}
+      accessibilityLabel={i18n.t('settings.modeA11y', { title })}
       accessibilityState={{ selected }}
       onPress={onPress}
       testID={`appearance-${mode}`}
@@ -91,7 +94,7 @@ function ToggleRow({
 
 const notOnWeb = (what: string) => {
   if (Platform.OS === 'web') {
-    Alert.alert(`${what} works on the phone app`, 'Open Dayflow on iOS or Android to turn this on.');
+    Alert.alert(i18n.t('settings.webOnly', { what }), i18n.t('settings.webOnlyBody'));
     return true;
   }
   return false;
@@ -99,7 +102,10 @@ const notOnWeb = (what: string) => {
 
 export default function SettingsScreen() {
   const colors = useColors();
+  const { t } = useT();
+  const [langOpen, setLangOpen] = useState(false);
   const {
+    language,
     visualMode, setVisualMode, remindersEnabled, setRemindersEnabled,
     calendarSyncEnabled, setCalendarSyncEnabled, resetOnboarding,
     liveActivityEnabled, setLiveActivityEnabled,
@@ -113,47 +119,67 @@ export default function SettingsScreen() {
     .sort((a, b) => b.ins.ratio - a.ins.ratio)
     .slice(0, 3);
   const quietOn = quietStart !== null && quietEnd !== null;
+  const currentLanguageName =
+    language === 'system'
+      ? `${t('languageSheet.system')} · ${LANGUAGES.find((l) => l.code === deviceLanguage())?.native}`
+      : LANGUAGES.find((l) => l.code === language)?.native ?? 'English';
 
   const toggleReminders = async (on: boolean) => {
     if (!on) return setRemindersEnabled(false);
-    if (notOnWeb('Reminders')) return;
+    if (notOnWeb(t('settings.remindersWord'))) return;
     const ok = await requestReminderPermission();
-    if (!ok) Alert.alert('Notifications are off', 'Allow notifications for Dayflow in your phone settings.');
+    if (!ok) Alert.alert(t('settings.notifOff'), t('settings.notifOffBody'));
     setRemindersEnabled(ok);
   };
 
   const toggleCalendar = async (on: boolean) => {
     if (!on) return setCalendarSyncEnabled(false);
-    if (notOnWeb('Calendar sync')) return;
+    if (notOnWeb(t('settings.calendarWord'))) return;
     const ok = await requestCalendarPermission();
-    if (!ok) Alert.alert('Calendar access is off', 'Allow calendar access for Dayflow in your phone settings.');
+    if (!ok) Alert.alert(t('settings.calendarOff'), t('settings.calendarOffBody'));
     setCalendarSyncEnabled(ok);
   };
 
   return (
     <Page>
       <View style={styles.header}>
-        <Eyebrow>SETTINGS</Eyebrow>
-        <PageTitle>Make it yours</PageTitle>
-        <BodyText style={styles.headerCopy}>
-          Keep what helps. Turn off what doesn’t.
-        </BodyText>
+        <Eyebrow>{t('settings.eyebrow')}</Eyebrow>
+        <PageTitle>{t('settings.title')}</PageTitle>
+        <BodyText style={styles.headerCopy}>{t('settings.intro')}</BodyText>
       </View>
 
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${t('settings.language')}: ${currentLanguageName}`}
+        onPress={() => setLangOpen(true)}
+        testID="open-language"
+        style={({ pressed }) => [styles.toggleRow, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
+      >
+        <View style={[styles.modeIcon, { backgroundColor: colors.secondary }]}>
+          <Feather name="globe" size={17} color={colors.primary} />
+        </View>
+        <View style={styles.modeCopy}>
+          <Text style={[styles.modeTitle, { color: colors.foreground }]}>{t('settings.language')}</Text>
+          <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>{currentLanguageName}</Text>
+        </View>
+        <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+      </Pressable>
+      <LanguageSheet visible={langOpen} onClose={() => setLangOpen(false)} />
+
       <View style={styles.section}>
-        <SectionHeading title="Look & feel" subtitle="You can switch anytime." />
+        <SectionHeading title={t('settings.lookTitle')} subtitle={t('settings.lookSub')} />
         <ModeOption
           mode="playful"
-          title="Colorful"
-          subtitle="Bright colors and tall blocks that show time"
+          title={t('settings.colorful')}
+          subtitle={t('settings.colorfulSub')}
           icon="sun"
           selected={visualMode === 'playful'}
           onPress={() => setVisualMode('playful')}
         />
         <ModeOption
           mode="focused"
-          title="Calm"
-          subtitle="Fewer colors, tidy blocks, less to look at"
+          title={t('settings.calm')}
+          subtitle={t('settings.calmSub')}
           icon="target"
           selected={visualMode === 'focused'}
           onPress={() => setVisualMode('focused')}
@@ -161,18 +187,18 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
-        <SectionHeading title="Reminders & widgets" subtitle="Gentle nudges, never nagging." />
+        <SectionHeading title={t('settings.remindersTitle')} subtitle={t('settings.remindersSub')} />
         <ToggleRow
           icon="bell"
-          title="Transition reminders"
-          subtitle="A heads-up 5 minutes before, and when it’s time"
+          title={t('settings.transitions')}
+          subtitle={t('settings.transitionsSub')}
           value={remindersEnabled}
           onChange={(v) => void toggleReminders(v)}
           testID="toggle-reminders"
         />
         {remindersEnabled ? (
           <View style={[styles.subPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>Remind me before each activity</Text>
+            <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>{t('settings.remindBefore')}</Text>
             <View style={styles.chipRow}>
               {REMINDER_LEADS.map((m) => {
                 const sel = m === reminderLead;
@@ -185,16 +211,16 @@ export default function SettingsScreen() {
                     testID={`lead-${m}`}
                     style={[styles.chip, { backgroundColor: sel ? colors.primary : colors.muted }]}
                   >
-                    <Text style={{ color: sel ? colors.primaryForeground : colors.foreground, fontWeight: '700' }}>{m} min</Text>
+                    <Text style={{ color: sel ? colors.primaryForeground : colors.foreground, fontWeight: '700' }}>{t('common.minutes', { count: m })}</Text>
                   </Pressable>
                 );
               })}
             </View>
             <View style={styles.quietRow}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.modeTitle, { color: colors.foreground }]}>Quiet hours</Text>
+                <Text style={[styles.modeTitle, { color: colors.foreground }]}>{t('settings.quietHours')}</Text>
                 <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>
-                  {quietOn ? `No reminders ${formatMinutes(quietStart)} – ${formatMinutes(quietEnd)}` : 'Reminders can arrive at any time'}
+                  {quietOn ? t('settings.quietOn', { start: formatMinutes(quietStart), end: formatMinutes(quietEnd) }) : t('settings.quietOff')}
                 </Text>
               </View>
               <Switch
@@ -203,19 +229,19 @@ export default function SettingsScreen() {
                   on ? setQuietHours(profile?.sleep ?? 22 * 60, profile?.wake ?? 7 * 60) : setQuietHours(null, null)
                 }
                 trackColor={{ true: colors.primary, false: colors.input }}
-                accessibilityLabel="Quiet hours"
+                accessibilityLabel={t('settings.quietHours')}
                 testID="toggle-quiet"
               />
             </View>
             {quietOn ? (
               <View style={styles.chipRow}>
-                {([['Start', quietStart, (v: number) => setQuietHours(v, quietEnd)], ['End', quietEnd, (v: number) => setQuietHours(quietStart, v)]] as const).map(([label, value, setV]) => (
+                {([[t('settings.start'), quietStart, (v: number) => setQuietHours(v, quietEnd)], [t('settings.end'), quietEnd, (v: number) => setQuietHours(quietStart, v)]] as const).map(([label, value, setV]) => (
                   <View key={label} style={[styles.quietStep, { backgroundColor: colors.muted }]}>
-                    <Pressable accessibilityLabel={`${label} earlier`} hitSlop={6} onPress={() => setV(((value ?? 0) - 30 + 1440) % 1440)}>
+                    <Pressable accessibilityLabel={t('settings.earlier', { label })} hitSlop={6} onPress={() => setV(((value ?? 0) - 30 + 1440) % 1440)}>
                       <Feather name="minus" size={16} color={colors.foreground} />
                     </Pressable>
                     <Text style={[styles.quietText, { color: colors.foreground }]}>{label} {formatMinutes(value ?? 0)}</Text>
-                    <Pressable accessibilityLabel={`${label} later`} hitSlop={6} onPress={() => setV(((value ?? 0) + 30) % 1440)}>
+                    <Pressable accessibilityLabel={t('settings.later', { label })} hitSlop={6} onPress={() => setV(((value ?? 0) + 30) % 1440)}>
                       <Feather name="plus" size={16} color={colors.foreground} />
                     </Pressable>
                   </View>
@@ -226,8 +252,8 @@ export default function SettingsScreen() {
         ) : null}
         <ToggleRow
           icon="calendar"
-          title="Show my calendar"
-          subtitle="Events from Apple, Google or Outlook calendars on this phone"
+          title={t('settings.calendar')}
+          subtitle={t('settings.calendarSub')}
           value={calendarSyncEnabled}
           onChange={(v) => void toggleCalendar(v)}
           testID="toggle-calendar"
@@ -235,8 +261,8 @@ export default function SettingsScreen() {
         {Platform.OS === 'ios' ? (
           <ToggleRow
             icon="smartphone"
-            title="Live Activity"
-            subtitle="Countdown on the lock screen & Dynamic Island while a block is running"
+            title={t('settings.liveActivity')}
+            subtitle={t('settings.liveActivitySub')}
             value={liveActivityEnabled}
             onChange={setLiveActivityEnabled}
             testID="toggle-live-activity"
@@ -247,11 +273,9 @@ export default function SettingsScreen() {
             <Feather name="grid" size={17} color={colors.primary} />
           </View>
           <View style={styles.modeCopy}>
-            <Text style={[styles.modeTitle, { color: colors.foreground }]}>Add a widget</Text>
+            <Text style={[styles.modeTitle, { color: colors.foreground }]}>{t('settings.widget')}</Text>
             <Text style={[styles.modeSubtitle, { color: colors.secondaryForeground }]}>
-              {Platform.OS === 'android'
-                ? 'Long-press your home screen → Widgets → Dayflow.'
-                : 'Long-press your home or lock screen → Edit → Add widget → Dayflow.'}
+              {Platform.OS === 'android' ? t('settings.widgetAndroid') : t('settings.widgetIos')}
             </Text>
           </View>
         </View>
@@ -260,11 +284,9 @@ export default function SettingsScreen() {
             <Feather name="zap" size={17} color={colors.primary} />
           </View>
           <View style={styles.modeCopy}>
-            <Text style={[styles.modeTitle, { color: colors.foreground }]}>Quick add from anywhere</Text>
+            <Text style={[styles.modeTitle, { color: colors.foreground }]}>{t('settings.quickAdd')}</Text>
             <Text style={[styles.modeSubtitle, { color: colors.secondaryForeground }]}>
-              {Platform.OS === 'ios'
-                ? 'Tap + on the widget, add “Dayflow quick add” to Control Center, or make a Shortcut that opens dayflow://capture and ask Siri.'
-                : 'Make a home-screen shortcut to dayflow://capture.'}
+              {Platform.OS === 'ios' ? t('settings.quickAddIos') : t('settings.quickAddAndroid')}
             </Text>
           </View>
         </View>
@@ -281,17 +303,17 @@ export default function SettingsScreen() {
             <Feather name="refresh-cw" size={17} color={colors.mutedForeground} />
           </View>
           <View style={styles.modeCopy}>
-            <Text style={[styles.modeTitle, { color: colors.foreground }]}>Start today over</Text>
-            <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>Answer 3 quick questions to rebuild today</Text>
+            <Text style={[styles.modeTitle, { color: colors.foreground }]}>{t('settings.startOver')}</Text>
+            <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>{t('settings.startOverSub')}</Text>
           </View>
           <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
         </Pressable>
       </View>
 
       <View style={styles.section}>
-        <SectionHeading title="Time, made visible" subtitle="Learned quietly from your focus sessions." />
+        <SectionHeading title={t('settings.timeTitle')} subtitle={t('settings.timeSub')} />
         <View style={[styles.subPanel, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 0 }]}>
-          <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>Break between activities</Text>
+          <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>{t('settings.breakBetween')}</Text>
           <View style={styles.chipRow}>
             {BUFFER_OPTIONS.map((m) => {
               const sel = m === bufferMinutes;
@@ -304,29 +326,29 @@ export default function SettingsScreen() {
                   testID={`buffer-${m}`}
                   style={[styles.chip, { backgroundColor: sel ? colors.primary : colors.muted }]}
                 >
-                  <Text style={{ color: sel ? colors.primaryForeground : colors.foreground, fontWeight: '700' }}>{m === 0 ? 'None' : `${m} min`}</Text>
+                  <Text style={{ color: sel ? colors.primaryForeground : colors.foreground, fontWeight: '700' }}>{m === 0 ? t('settings.none') : t('common.minutes', { count: m })}</Text>
                 </Pressable>
               );
             })}
           </View>
           <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>
-            Switching tasks takes time. New activities will start after this gap.
+            {t('settings.breakHint')}
           </Text>
         </View>
 
         <View style={[styles.subPanel, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 0 }]}>
-          <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>How long things really take</Text>
+          <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>{t('settings.patterns')}</Text>
           {tendency ? (
             <Text style={[styles.modeTitle, { color: colors.foreground }]}>
               {tendency.ratio > 1.1
-                ? `Things usually take you about ${Math.round((tendency.ratio - 1) * 100)}% longer than planned.`
+                ? t('settings.patternLonger', { pct: Math.round((tendency.ratio - 1) * 100) })
                 : tendency.ratio < 0.9
-                  ? `You often finish about ${Math.round((1 - tendency.ratio) * 100)}% faster than planned.`
-                  : 'Your time estimates have been spot on lately.'}
+                  ? t('settings.patternFaster', { pct: Math.round((1 - tendency.ratio) * 100) })
+                  : t('settings.patternSpotOn')}
             </Text>
           ) : (
             <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>
-              Finish a few activities from the focus timer and Dayflow will show how long things really take — no judging, just info.
+              {t('settings.patternEmpty')}
             </Text>
           )}
           {overrunners.map(({ title, ins }) => (
@@ -334,7 +356,7 @@ export default function SettingsScreen() {
               <Feather name="clock" size={14} color={colors.mutedForeground} />
               <Text style={[styles.patternText, { color: colors.foreground }]} numberOfLines={1}>{title}</Text>
               <Text style={[styles.patternMeta, { color: colors.mutedForeground }]}>
-                plan {ins.typicalPlanned}m → real {ins.typicalActual}m
+                {t('settings.patternRow', { planned: ins.typicalPlanned, actual: ins.typicalActual })}
               </Text>
             </View>
           ))}
@@ -343,7 +365,7 @@ export default function SettingsScreen() {
 
       <Pressable
         accessibilityRole="button"
-        accessibilityHint="Opens a form to email the Dayflow team"
+        accessibilityHint={t('settings.feedbackHint')}
         onPress={() => router.push('/feedback')}
         testID="open-feedback"
         style={({ pressed }) => [styles.toggleRow, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
@@ -352,8 +374,8 @@ export default function SettingsScreen() {
           <Feather name="message-circle" size={17} color={colors.primary} />
         </View>
         <View style={styles.modeCopy}>
-          <Text style={[styles.modeTitle, { color: colors.foreground }]}>Send feedback or report a bug</Text>
-          <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>A real person reads every message</Text>
+          <Text style={[styles.modeTitle, { color: colors.foreground }]}>{t('settings.feedback')}</Text>
+          <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>{t('settings.feedbackSub')}</Text>
         </View>
         <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
       </Pressable>
@@ -363,15 +385,15 @@ export default function SettingsScreen() {
           <Feather name="shield" size={18} color={colors.primary} />
         </View>
         <View style={styles.promiseCopy}>
-          <Text style={[styles.promiseTitle, { color: colors.foreground }]}>Your data stays on your phone</Text>
-          <BodyText>Everything is saved on this device. No account needed.</BodyText>
+          <Text style={[styles.promiseTitle, { color: colors.foreground }]}>{t('settings.privacyTitle')}</Text>
+          <BodyText>{t('settings.privacyBody')}</BodyText>
         </View>
       </Card>
 
       <View style={[styles.footer, { borderTopColor: colors.border }]}>
         <Text style={[styles.footerBrand, { color: colors.foreground }]}>dayflow</Text>
         <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
-          A visual day planner for ADHD brains.
+          {t('settings.tagline')}
         </Text>
       </View>
     </Page>

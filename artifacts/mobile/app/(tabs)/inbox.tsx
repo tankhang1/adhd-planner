@@ -12,10 +12,12 @@ import * as Haptics from 'expo-haptics';
 import { BodyText, Card, Eyebrow, Page, PageTitle, SectionHeading } from '@/components/DayflowUI';
 import { formatMinutes, toDateKey, useDayflow } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { tr, useT } from '@/i18n';
 import { CloudBuddy } from '@/components/CloudBuddy';
 
 export default function InboxScreen() {
   const colors = useColors();
+  useT();
   const { inboxTasks, addInboxTask, toggleInboxTask, scheduleInboxTask, removeInboxTask } = useDayflow();
   const [draft, setDraft] = useState('');
   const [planningId, setPlanningId] = useState<string | null>(null);
@@ -49,23 +51,23 @@ export default function InboxScreen() {
     >
       <Page>
         <View style={styles.header}>
-          <Eyebrow>BRAIN DUMP</Eyebrow>
-          <PageTitle>Get it out of your head</PageTitle>
+          <Eyebrow>{tr('inbox.eyebrow')}</Eyebrow>
+          <PageTitle>{tr('inbox.title')}</PageTitle>
           <BodyText style={styles.headerCopy}>
-            Write down anything on your mind. You can decide what to do with it later.
+            {tr('inbox.intro')}
           </BodyText>
         </View>
 
         <Card style={styles.composer}>
-          <Text style={[styles.inputLabel, { color: colors.foreground }]}>What’s on your mind?</Text>
+          <Text style={[styles.inputLabel, { color: colors.foreground }]}>{tr('inbox.prompt')}</Text>
           <TextInput
-            accessibilityLabel="Task to add to your inbox"
-            accessibilityHint="This task is saved on this device."
+            accessibilityLabel={tr('inbox.inputA11y')}
+            accessibilityHint={tr('inbox.inputHint')}
             value={draft}
             onChangeText={setDraft}
             onSubmitEditing={addDraft}
             returnKeyType="done"
-            placeholder="What’s on your mind?"
+            placeholder={tr('inbox.prompt')}
             placeholderTextColor={colors.mutedForeground}
             selectionColor={colors.primary}
             style={[
@@ -80,7 +82,7 @@ export default function InboxScreen() {
           />
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Add task to inbox"
+            accessibilityLabel={tr('inbox.addA11y')}
             accessibilityState={{ disabled: !draft.trim() }}
             disabled={!draft.trim()}
             onPress={addDraft}
@@ -94,13 +96,13 @@ export default function InboxScreen() {
             ]}
           >
             <Feather name="plus" size={18} color={colors.primaryForeground} />
-            <Text style={[styles.addButtonText, { color: colors.primaryForeground }]}>Save it</Text>
+            <Text style={[styles.addButtonText, { color: colors.primaryForeground }]}>{tr('inbox.save')}</Text>
           </Pressable>
         </Card>
 
         <SectionHeading
-          title="Your open loops"
-          subtitle={`${inboxTasks.length} saved for later`}
+          title={tr('inbox.openLoops')}
+          subtitle={tr('inbox.savedCount', { count: inboxTasks.length })}
         />
 
         {inboxTasks.length ? (
@@ -110,7 +112,7 @@ export default function InboxScreen() {
               <View style={styles.taskCard}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`${task.done ? 'Mark incomplete' : 'Mark complete'}: ${task.title}`}
+                  accessibilityLabel={task.done ? tr('today.markIncomplete', { title: task.title }) : tr('today.markComplete', { title: task.title })}
                   accessibilityState={{ selected: task.done }}
                   onPress={() => {
                     void Haptics.selectionAsync();
@@ -134,7 +136,7 @@ export default function InboxScreen() {
                 {!task.done ? (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Add ${task.title} to today's plan`}
+                    accessibilityLabel={tr('inbox.scheduleA11y', { title: task.title })}
                     onPress={() => {
                       setPlanningId(planningId === task.id ? null : task.id);
                       void Haptics.selectionAsync();
@@ -146,12 +148,12 @@ export default function InboxScreen() {
                     ]}
                   >
                     <Feather name="calendar" size={15} color={colors.secondaryForeground} />
-                    <Text style={[styles.scheduleText, { color: colors.secondaryForeground }]}>Schedule</Text>
+                    <Text style={[styles.scheduleText, { color: colors.secondaryForeground }]}>{tr('inbox.schedule')}</Text>
                   </Pressable>
                 ) : (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Remove ${task.title}`}
+                    accessibilityLabel={tr('inbox.remove', { title: task.title })}
                     onPress={() => removeInboxTask(task.id)}
                     hitSlop={8}
                     testID={`remove-inbox-${task.id}`}
@@ -164,7 +166,7 @@ export default function InboxScreen() {
               {planningId === task.id ? (
                 <View style={[styles.planner, { borderTopColor: colors.border }]}>
                   <View style={styles.planRow}>
-                    {(['Today', 'Tomorrow'] as const).map((label, i) => {
+                    {[tr('inbox.today'), tr('inbox.tomorrow')].map((label, i) => {
                       const sel = planDay === i;
                       return (
                         <Pressable
@@ -181,22 +183,22 @@ export default function InboxScreen() {
                     })}
                   </View>
                   <View style={styles.planRow}>
-                    <Pressable accessibilityLabel="15 minutes earlier" onPress={() => setPlanTime((t) => Math.max(0, t - 15))} style={[styles.stepBtn, { backgroundColor: colors.secondary }]}>
+                    <Pressable accessibilityLabel={tr('inbox.earlier')} onPress={() => setPlanTime((t) => Math.max(0, t - 15))} style={[styles.stepBtn, { backgroundColor: colors.secondary }]}>
                       <Feather name="minus" size={16} color={colors.secondaryForeground} />
                     </Pressable>
                     <Text style={[styles.planTime, { color: colors.foreground }]}>{formatMinutes(planTime)}</Text>
-                    <Pressable accessibilityLabel="15 minutes later" onPress={() => setPlanTime((t) => Math.min(23 * 60 + 45, t + 15))} style={[styles.stepBtn, { backgroundColor: colors.secondary }]}>
+                    <Pressable accessibilityLabel={tr('inbox.later')} onPress={() => setPlanTime((t) => Math.min(23 * 60 + 45, t + 15))} style={[styles.stepBtn, { backgroundColor: colors.secondary }]}>
                       <Feather name="plus" size={16} color={colors.secondaryForeground} />
                     </Pressable>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Add to timeline"
+                      accessibilityLabel={tr('inbox.addToTimeline')}
                       onPress={() => confirmPlan(task.id)}
                       testID={`confirm-plan-${task.id}`}
                       style={[styles.confirm, { backgroundColor: colors.primary }]}
                     >
                       <Feather name="check" size={16} color={colors.primaryForeground} />
-                      <Text style={{ color: colors.primaryForeground, fontWeight: '700' }}>Add</Text>
+                      <Text style={{ color: colors.primaryForeground, fontWeight: '700' }}>{tr('inbox.add')}</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -207,15 +209,15 @@ export default function InboxScreen() {
         ) : (
           <Card style={styles.emptyCard}>
             <CloudBuddy mood="happy" size={110} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Your head is clear</Text>
-            <BodyText>New thoughts can wait here until you’re ready.</BodyText>
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>{tr('inbox.emptyTitle')}</Text>
+            <BodyText>{tr('inbox.emptyBody')}</BodyText>
           </Card>
         )}
 
         <View style={[styles.note, { backgroundColor: colors.apricot }]}>
           <Feather name="heart" size={16} color={colors.foreground} />
           <Text style={[styles.noteText, { color: colors.foreground }]}>
-            Nothing here is late. It’s just waiting for you.
+            {tr('inbox.note')}
           </Text>
         </View>
       </Page>

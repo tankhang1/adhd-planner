@@ -1,3 +1,4 @@
+import '@/i18n';
 import React, { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -33,7 +34,7 @@ const minutesNow = () => {
 function AppEffects() {
   const {
     hydrated, onboarded, dayTasks, remindersEnabled, liveActivityEnabled,
-    reminderLead, quietStart, quietEnd, extendTask, toggleDayTask,
+    reminderLead, quietStart, quietEnd, extendTask, toggleDayTask, language,
   } = useDayflow();
   const segments = useSegments();
 
@@ -48,7 +49,7 @@ function AppEffects() {
     const prefs = { enabled: remindersEnabled, lead: reminderLead, quietStart, quietEnd };
     const t = setTimeout(() => void syncReminders(dayTasks.filter((x) => !x.parked), prefs).catch(() => {}), 800);
     return () => clearTimeout(t);
-  }, [hydrated, dayTasks, remindersEnabled, reminderLead, quietStart, quietEnd]);
+  }, [hydrated, dayTasks, remindersEnabled, reminderLead, quietStart, quietEnd, language]);
 
   // Widgets + Live Activity: on every plan change, and each minute so the
   // Live Activity switches to the next block while the app is open.
@@ -61,7 +62,7 @@ function AppEffects() {
       clearTimeout(t);
       clearInterval(i);
     };
-  }, [hydrated, dayTasks, liveActivityEnabled]);
+  }, [hydrated, dayTasks, liveActivityEnabled, language]);
 
   // Notification taps and buttons ("+10 min", "Done").
   const actionsRef = React.useRef({ extendTask, toggleDayTask, dayTasks });
@@ -106,6 +107,7 @@ function RootLayoutNav() {
       <Stack.Screen name="one-thing" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       <Stack.Screen name="capture" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="feedback" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="nudges" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="routine-edit" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
     </Stack>

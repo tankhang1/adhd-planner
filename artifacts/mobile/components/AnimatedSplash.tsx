@@ -12,13 +12,14 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { CloudBuddy } from './CloudBuddy';
+import { tr } from '@/i18n';
 import type { BuddyMood } from './CloudBuddy';
 
 const BG = '#6C5CE7';
 
 const greeting = () => {
   const h = new Date().getHours();
-  return h < 5 ? 'Rest is part of the plan' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  return h < 5 ? tr('splash.night') : h < 12 ? tr('splash.morning') : h < 18 ? tr('splash.afternoon') : tr('splash.evening');
 };
 
 /**

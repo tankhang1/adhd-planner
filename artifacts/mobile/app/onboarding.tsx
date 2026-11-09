@@ -7,13 +7,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatMinutes, useDayflow } from '@/context/DayflowContext';
 import type { Struggle } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { tr, useT } from '@/i18n';
 import { CloudBuddy } from '@/components/CloudBuddy';
 
 const STRUGGLES: Array<{ key: Struggle; title: string; subtitle: string; icon: keyof typeof Feather.glyphMap }> = [
-  { key: 'starting', title: 'Getting started', subtitle: 'I know what to do, but I can’t begin', icon: 'play-circle' },
-  { key: 'time', title: 'Losing track of time', subtitle: 'I’m often late or guess times wrong', icon: 'clock' },
-  { key: 'hyperfocus', title: 'Losing myself in one thing', subtitle: 'I hyperfocus and forget the rest', icon: 'target' },
-  { key: 'overwhelm', title: 'Feeling overwhelmed', subtitle: 'Too much to do, no idea where to start', icon: 'cloud' },
+  { key: 'starting', title: 'onboarding.startingTitle', subtitle: 'onboarding.startingSub', icon: 'play-circle' },
+  { key: 'time', title: 'onboarding.timeTitle', subtitle: 'onboarding.timeSub', icon: 'clock' },
+  { key: 'hyperfocus', title: 'onboarding.hyperTitle', subtitle: 'onboarding.hyperSub', icon: 'target' },
+  { key: 'overwhelm', title: 'onboarding.overTitle', subtitle: 'onboarding.overSub', icon: 'cloud' },
 ];
 
 function TimeStepper({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) {
@@ -21,7 +22,7 @@ function TimeStepper({ value, onChange, label }: { value: number; onChange: (v: 
   const btn = (delta: number, icon: 'minus' | 'plus') => (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${label} ${delta > 0 ? 'later' : 'earlier'}`}
+      accessibilityLabel={delta > 0 ? tr('onboarding.later', { label }) : tr('onboarding.earlier', { label })}
       onPress={() => {
         void Haptics.selectionAsync();
         onChange((value + delta + 24 * 60) % (24 * 60));
@@ -44,6 +45,7 @@ function TimeStepper({ value, onChange, label }: { value: number; onChange: (v: 
 
 export default function OnboardingScreen() {
   const colors = useColors();
+  useT();
   const insets = useSafeAreaInsets();
   const { completeOnboarding } = useDayflow();
   const [step, setStep] = useState(0);
@@ -53,20 +55,20 @@ export default function OnboardingScreen() {
 
   const steps = [
     {
-      eyebrow: 'QUESTION 1 OF 3',
-      title: 'When do you usually wake up?',
-      body: <TimeStepper value={wake} onChange={setWake} label="Wake time" />,
+      eyebrow: tr('onboarding.q', { n: 1 }),
+      title: tr('onboarding.wake'),
+      body: <TimeStepper value={wake} onChange={setWake} label={tr('onboarding.wakeLabel')} />,
       ready: true,
     },
     {
-      eyebrow: 'QUESTION 2 OF 3',
-      title: 'And when do you go to bed?',
-      body: <TimeStepper value={sleep} onChange={setSleep} label="Bed time" />,
+      eyebrow: tr('onboarding.q', { n: 2 }),
+      title: tr('onboarding.sleep'),
+      body: <TimeStepper value={sleep} onChange={setSleep} label={tr('onboarding.sleepLabel')} />,
       ready: true,
     },
     {
-      eyebrow: 'QUESTION 3 OF 3',
-      title: 'What’s hardest for you right now?',
+      eyebrow: tr('onboarding.q', { n: 3 }),
+      title: tr('onboarding.hardest'),
       body: (
         <View style={{ gap: 10 }}>
           {STRUGGLES.map((s) => {
@@ -90,8 +92,8 @@ export default function OnboardingScreen() {
                   <Feather name={s.icon} size={18} color={sel ? colors.primaryForeground : colors.mutedForeground} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.optionTitle, { color: colors.foreground }]}>{s.title}</Text>
-                  <Text style={[styles.optionSub, { color: colors.mutedForeground }]}>{s.subtitle}</Text>
+                  <Text style={[styles.optionTitle, { color: colors.foreground }]}>{tr(s.title)}</Text>
+                  <Text style={[styles.optionSub, { color: colors.mutedForeground }]}>{tr(s.subtitle)}</Text>
                 </View>
               </Pressable>
             );
@@ -129,7 +131,7 @@ export default function OnboardingScreen() {
           <View style={styles.heroCol}>
             <CloudBuddy mood="hello" size={150} />
             <Text style={[styles.heroText, { color: colors.foreground, textAlign: 'center' }]}>
-              Hi, I’m here to help your day feel lighter. Three quick questions and I’ll sketch a gentle first day for you.
+              {tr('onboarding.hello')}
             </Text>
           </View>
         ) : null}
@@ -147,7 +149,7 @@ export default function OnboardingScreen() {
         {step > 0 ? (
           <Pressable accessibilityRole="button" onPress={() => setStep(step - 1)} style={styles.back} testID="onboarding-back">
             <Feather name="arrow-left" size={18} color={colors.mutedForeground} />
-            <Text style={{ color: colors.mutedForeground, fontWeight: '600' }}>Back</Text>
+            <Text style={{ color: colors.mutedForeground, fontWeight: '600' }}>{tr('onboarding.back')}</Text>
           </Pressable>
         ) : <View />}
         <Pressable
@@ -161,7 +163,7 @@ export default function OnboardingScreen() {
             { backgroundColor: colors.primary, opacity: !current.ready ? 0.4 : pressed ? 0.85 : 1 },
           ]}
         >
-          <Text style={[styles.ctaText, { color: colors.primaryForeground }]}>{last ? 'Make my day' : 'Next'}</Text>
+          <Text style={[styles.ctaText, { color: colors.primaryForeground }]}>{last ? tr('onboarding.make') : tr('onboarding.next')}</Text>
           <Feather name={last ? 'check' : 'arrow-right'} size={18} color={colors.primaryForeground} />
         </Pressable>
       </View>

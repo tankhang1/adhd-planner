@@ -7,6 +7,7 @@ import { BodyText, Eyebrow, Page, PageTitle, ProgressBar, SectionHeading } from 
 import { useDayflow } from '@/context/DayflowContext';
 import type { Routine } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { formatDuration, tr, useT } from '@/i18n';
 import { ActivityIcon } from '@/components/ActivityIcon';
 
 function RoutineCard({ routine }: { routine: Routine }) {
@@ -24,12 +25,12 @@ function RoutineCard({ routine }: { routine: Routine }) {
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[styles.title, { color: colors.foreground }]}>{routine.title}</Text>
           <BodyText>
-            {routine.steps.length} steps · {minutes} min{routine.subtitle ? ` · ${routine.subtitle}` : ''}
+            {tr('routines.meta', { steps: routine.steps.length, time: formatDuration(minutes) })}{routine.subtitle ? ` · ${routine.subtitle}` : ''}
           </BodyText>
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Edit ${routine.title}`}
+          accessibilityLabel={tr('routines.edit', { title: routine.title })}
           hitSlop={10}
           onPress={() => router.push({ pathname: '/routine-edit', params: { id: routine.id } })}
           testID={`routine-edit-${routine.id}`}
@@ -56,7 +57,7 @@ function RoutineCard({ routine }: { routine: Routine }) {
           </View>
         ))}
         {routine.steps.length > 4 ? (
-          <Text style={[styles.more, { color: colors.mutedForeground }]}>+{routine.steps.length - 4} more</Text>
+          <Text style={[styles.more, { color: colors.mutedForeground }]}>{tr('routines.more', { count: routine.steps.length - 4 })}</Text>
         ) : null}
       </View>
 
@@ -64,7 +65,7 @@ function RoutineCard({ routine }: { routine: Routine }) {
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${completed > 0 ? 'Continue' : 'Start'} ${routine.title}`}
+        accessibilityLabel={`${completed > 0 ? tr('routines.continue') : tr('routines.start')}: ${routine.title}`}
         onPress={() => {
           void Haptics.selectionAsync();
           router.push({ pathname: '/routine-run', params: { id: routine.id } });
@@ -73,7 +74,7 @@ function RoutineCard({ routine }: { routine: Routine }) {
         style={({ pressed }) => [styles.start, { backgroundColor: ink, opacity: pressed ? 0.85 : 1 }]}
       >
         <Feather name="play" size={17} color="#FFFFFF" />
-        <Text style={styles.startText}>{completed > 0 ? 'Continue' : 'Start'}</Text>
+        <Text style={styles.startText}>{completed > 0 ? tr('routines.continue') : tr('routines.start')}</Text>
       </Pressable>
     </View>
   );
@@ -98,18 +99,18 @@ function JoyList() {
   return (
     <View style={styles.joy}>
       <SectionHeading
-        title="Your joy list"
-        subtitle="Small things that recharge you. I’ll suggest one after a hard task."
+        title={tr('routines.joyTitle')}
+        subtitle={tr('routines.joySub')}
       />
       <View style={styles.joyChips}>
         {treats.map((t) => (
           <View key={t.id} style={[styles.joyChip, { backgroundColor: colors.lemon }]}>
             <ActivityIcon name={t.icon} size={16} color={colors.lemonInk} />
             <Text style={[styles.joyText, { color: colors.foreground }]} numberOfLines={1}>{t.title}</Text>
-            <Text style={[styles.joyMin, { color: colors.mutedForeground }]}>{t.minutes}m</Text>
+            <Text style={[styles.joyMin, { color: colors.mutedForeground }]}>{tr('common.minutes', { count: t.minutes })}</Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Remove ${t.title}`}
+              accessibilityLabel={tr('routines.joyRemove', { title: t.title })}
               hitSlop={8}
               onPress={() => removeTreat(t.id)}
               testID={`treat-remove-${t.id}`}
@@ -125,24 +126,24 @@ function JoyList() {
           onChangeText={setDraft}
           onSubmitEditing={add}
           returnKeyType="done"
-          placeholder="Add something you enjoy…"
+          placeholder={tr('routines.joyPlaceholder')}
           placeholderTextColor={colors.mutedForeground}
-          accessibilityLabel="Add to your joy list"
+          accessibilityLabel={tr('routines.joyAdd')}
           testID="treat-input"
           style={[styles.joyInput, { color: colors.foreground }]}
         />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Length ${minutes} minutes. Tap to change`}
+          accessibilityLabel={tr('routines.joyLength', { count: minutes })}
           onPress={() => setMinutes((m) => TREAT_MINUTES[(TREAT_MINUTES.indexOf(m) + 1) % TREAT_MINUTES.length])}
           style={[styles.joyLen, { backgroundColor: colors.muted }]}
           testID="treat-minutes"
         >
-          <Text style={[styles.joyMin, { color: colors.foreground }]}>{minutes}m</Text>
+          <Text style={[styles.joyMin, { color: colors.foreground }]}>{tr('common.minutes', { count: minutes })}</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Add"
+          accessibilityLabel={tr('routines.add')}
           disabled={!draft.trim()}
           onPress={add}
           testID="treat-add"
@@ -156,15 +157,16 @@ function JoyList() {
 }
 
 export default function RoutinesScreen() {
+  useT();
   const { routines } = useDayflow();
   const colors = useColors();
   return (
     <Page>
       <View style={styles.header}>
-        <Eyebrow>SAME STEPS, LESS THINKING</Eyebrow>
-        <PageTitle>Routines</PageTitle>
+        <Eyebrow>{tr('routines.eyebrow')}</Eyebrow>
+        <PageTitle>{tr('routines.title')}</PageTitle>
         <BodyText style={styles.headerCopy}>
-          Follow along one step at a time. Skip what you need to — it still counts.
+          {tr('routines.intro')}
         </BodyText>
       </View>
 
@@ -177,7 +179,7 @@ export default function RoutinesScreen() {
         style={({ pressed }) => [styles.newBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
       >
         <Feather name="plus" size={18} color={colors.primary} />
-        <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 15 }}>New routine</Text>
+        <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 15 }}>{tr('routines.newRoutine')}</Text>
       </Pressable>
 
       <JoyList />
@@ -185,7 +187,7 @@ export default function RoutinesScreen() {
       <View style={[styles.reassurance, { backgroundColor: colors.secondary }]}>
         <Feather name="heart" size={16} color={colors.primary} />
         <Text style={[styles.reassuranceText, { color: colors.secondaryForeground }]}>
-          No streaks, no pressure. Your routines only change when you change them.
+          {tr('routines.reassure')}
         </Text>
       </View>
     </Page>

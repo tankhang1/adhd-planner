@@ -1,8 +1,9 @@
 import type { DayTask, InboxTask } from '@/context/DayflowContext';
 
+/** `reason` is an i18n key; `reasonParams` fills it in. */
 export type Suggestion =
-  | { kind: 'task'; task: DayTask; reason: string }
-  | { kind: 'inbox'; item: InboxTask; reason: string };
+  | { kind: 'task'; task: DayTask; reason: string; reasonParams?: Record<string, unknown> }
+  | { kind: 'inbox'; item: InboxTask; reason: string; reasonParams?: Record<string, unknown> };
 
 /** The task happening now, else the next unfinished one. Deterministic. */
 export function currentOrNext(tasks: DayTask[], nowMin: number): DayTask | undefined {
@@ -30,7 +31,7 @@ export function pickForMe(
   const open = tasks.filter((t) => !t.done && !exclude.includes(t.id));
 
   const now = open.find((t) => nowMin >= t.start && nowMin < t.start + t.duration);
-  if (now) return { kind: 'task', task: now, reason: 'It’s happening right now.' };
+  if (now) return { kind: 'task', task: now, reason: 'oneThing.reasonNow' };
 
   const scored = open
     .map((t) => {
@@ -49,17 +50,17 @@ export function pickForMe(
     const chosen = scored.find((x) => (r -= x.score) <= 0) ?? scored[0];
     const t = chosen.t;
     const reason =
-      t.duration <= 15 ? `It only takes ${t.duration} minutes.`
-      : t.start - nowMin >= 0 && t.start - nowMin <= 60 ? 'It’s coming up soon anyway.'
-      : t.rolledOver ? 'It’s been waiting a little while.'
-      : 'It’s a good next step.';
-    return { kind: 'task', task: t, reason };
+      t.duration <= 15 ? 'oneThing.reasonShort'
+      : t.start - nowMin >= 0 && t.start - nowMin <= 60 ? 'oneThing.reasonSoon'
+      : t.rolledOver ? 'oneThing.reasonWaiting'
+      : 'oneThing.reasonGood';
+    return { kind: 'task', task: t, reason, reasonParams: { count: t.duration } };
   }
 
   const fromInbox = inbox.filter((i) => !i.done && !exclude.includes(i.id));
   if (fromInbox.length) {
     const item = fromInbox[Math.floor(random() * fromInbox.length)];
-    return { kind: 'inbox', item, reason: 'Your plan is clear — here’s something from your inbox.' };
+    return { kind: 'inbox', item, reason: 'oneThing.reasonInbox' };
   }
   return null;
 }

@@ -22,12 +22,12 @@ struct DayflowLockScreenView: View {
         .background(Color.white, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
 
       VStack(alignment: .leading, spacing: 5) {
-        Text(overrun ? "Time’s up · \(state.title)" : state.title)
+        Text(overrun ? L("timesUp", "Time’s up · {{title}}", title: state.title) : state.title)
           .font(.system(size: 16, weight: .bold, design: .rounded))
           .foregroundStyle(brandInk)
           .lineLimit(1)
         if overrun {
-          Text("Wrap up when you can — or add 10 min in Dayflow.")
+          Text(L("overrunHint", "Wrap up when you can — or add 10 min in Dayflow."))
             .font(.system(size: 12))
             .foregroundStyle(brandMuted)
             .lineLimit(2)
@@ -39,14 +39,14 @@ struct DayflowLockScreenView: View {
           }
           .tint(ink)
           if let next = state.nextTitle {
-            Text("Next: \(next)").font(.system(size: 12)).foregroundStyle(brandMuted).lineLimit(1)
+            Text(L("nextTask", "Next: {{title}}", title: next)).font(.system(size: 12)).foregroundStyle(brandMuted).lineLimit(1)
           }
         }
       }
 
       VStack(alignment: .trailing, spacing: 0) {
         if overrun {
-          Text("over").font(.system(size: 11, weight: .semibold)).foregroundStyle(ink)
+          Text(L("over", "over")).font(.system(size: 11, weight: .semibold)).foregroundStyle(ink)
           // Counts *up* once the end date has passed.
           Text(state.endDate, style: .timer)
             .font(.system(size: 20, weight: .bold, design: .rounded).monospacedDigit())
@@ -97,11 +97,11 @@ struct DayflowLiveActivity: Widget {
           .frame(width: 70, alignment: .trailing)
         }
         DynamicIslandExpandedRegion(.center) {
-          Text(overrun ? "Time’s up · \(s.title)" : s.title).font(.headline).lineLimit(1)
+          Text(overrun ? L("timesUp", "Time’s up · {{title}}", title: s.title) : s.title).font(.headline).lineLimit(1)
         }
         DynamicIslandExpandedRegion(.bottom) {
           if overrun {
-            Text("Wrap up when you can — or add 10 min in Dayflow.")
+            Text(L("overrunHint", "Wrap up when you can — or add 10 min in Dayflow."))
               .font(.caption).foregroundStyle(.secondary).lineLimit(1)
           } else {
             VStack(spacing: 6) {
@@ -112,7 +112,7 @@ struct DayflowLiveActivity: Widget {
               }
               .tint(ink)
               if let next = s.nextTitle {
-                Text("Next: \(next)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(L("nextTask", "Next: {{title}}", title: next)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
               }
             }
           }

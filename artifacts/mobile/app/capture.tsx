@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDayflow } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { tr, useT } from '@/i18n';
 import { CloudBuddy } from '@/components/CloudBuddy';
 
 /**
@@ -15,6 +16,7 @@ import { CloudBuddy } from '@/components/CloudBuddy';
  */
 export default function CaptureScreen() {
   const colors = useColors();
+  useT();
   const insets = useSafeAreaInsets();
   const { text } = useLocalSearchParams<{ text?: string }>();
   const { addInboxTasks } = useDayflow();
@@ -46,33 +48,33 @@ export default function CaptureScreen() {
       style={[styles.screen, { backgroundColor: colors.background, paddingTop: Platform.OS === 'ios' ? 16 : insets.top + 8, paddingBottom: insets.bottom + 12 }]}
     >
       <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close" hitSlop={12} onPress={() => router.back()} testID="capture-close">
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('common.close')} hitSlop={12} onPress={() => router.back()} testID="capture-close">
           <Feather name="x" size={24} color={colors.foreground} />
         </Pressable>
-        <Text style={[styles.topLabel, { color: colors.foreground }]}>QUICK ADD</Text>
+        <Text style={[styles.topLabel, { color: colors.foreground }]}>{tr('capture.label')}</Text>
         <View style={{ width: 24 }} />
       </View>
 
       {saved !== null ? (
         <View style={styles.center}>
           <CloudBuddy mood="happy" size={160} />
-          <Text style={[styles.title, { color: colors.foreground }]}>Saved to your Inbox</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>{tr('capture.saved')}</Text>
           <Text style={[styles.sub, { color: colors.mutedForeground }]}>
-            {saved === 1 ? 'Out of your head. You can deal with it later.' : `${saved} things out of your head.`}
+            {saved === 1 ? tr('capture.savedOne') : tr('capture.savedMany', { count: saved })}
           </Text>
         </View>
       ) : (
         <View style={styles.body}>
-          <Text style={[styles.title, { color: colors.foreground }]}>What’s on your mind?</Text>
-          <Text style={[styles.sub, { color: colors.mutedForeground }]}>One thing per line. No need to sort it yet.</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>{tr('capture.title')}</Text>
+          <Text style={[styles.sub, { color: colors.mutedForeground }]}>{tr('capture.sub')}</Text>
           <TextInput
             value={draft}
             onChangeText={setDraft}
             autoFocus
             multiline
-            placeholder={'Call the dentist\nBuy cat food'}
+            placeholder={tr('capture.placeholder')}
             placeholderTextColor={colors.mutedForeground}
-            accessibilityLabel="Things to remember, one per line"
+            accessibilityLabel={tr('capture.inputA11y')}
             testID="capture-input"
             style={[styles.input, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]}
           />
@@ -89,7 +91,7 @@ export default function CaptureScreen() {
           >
             <Feather name="inbox" size={18} color={colors.primaryForeground} />
             <Text style={[styles.saveText, { color: colors.primaryForeground }]}>
-              {lines.length > 1 ? `Save ${lines.length} things` : 'Save to Inbox'}
+              {lines.length > 1 ? tr('capture.saveMany', { count: lines.length }) : tr('capture.saveOne')}
             </Text>
           </Pressable>
         </View>

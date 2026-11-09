@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { useColors } from '@/hooks/useColors';
+import { tr } from '@/i18n';
 import { CloudBuddy } from './CloudBuddy';
 import type { BuddyMood } from './CloudBuddy';
 
@@ -25,7 +26,7 @@ export function BuddyDialog({
   const reduce = useReducedMotion();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={tr('common.close')} />
       <View style={styles.center} pointerEvents="box-none">
         <View style={[styles.card, { backgroundColor: colors.card }]} accessibilityViewIsModal>
           <CloudBuddy mood={mood} size={150} />

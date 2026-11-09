@@ -1,6 +1,7 @@
 import React from 'react';
 import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
+import { useT } from '@/i18n';
 import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -15,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // Custom brand colors are applied only on the ClassicTabLayout path (older iOS / Android / web).
 function NativeTabLayout() {
   const colors = useColors();
+  const { t } = useT();
   return (
     <NativeTabs
       tintColor={colors.primary}
@@ -25,19 +27,19 @@ function NativeTabLayout() {
         <NativeTabs.Trigger.Icon
           sf={{ default: 'calendar', selected: 'calendar' }}
         />
-        <NativeTabs.Trigger.Label>Today</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>{t('tabs.today')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="routines">
         <NativeTabs.Trigger.Icon sf={{ default: 'sun.max', selected: 'sun.max.fill' }} />
-        <NativeTabs.Trigger.Label>Routines</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>{t('tabs.routines')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="inbox">
         <NativeTabs.Trigger.Icon sf={{ default: 'tray', selected: 'tray.fill' }} />
-        <NativeTabs.Trigger.Label>Inbox</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>{t('tabs.inbox')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings">
         <NativeTabs.Trigger.Icon sf={{ default: 'slider.horizontal.3', selected: 'slider.horizontal.3' }} />
-        <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>{t('tabs.settings')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -45,6 +47,7 @@ function NativeTabLayout() {
 
 function ClassicTabLayout() {
   const colors = useColors();
+  const { t } = useT();
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
   const isDark = colorScheme === 'dark';
@@ -87,7 +90,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Today',
+          title: t('tabs.today'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="calendar" tintColor={color} size={22} />
@@ -103,7 +106,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="routines"
         options={{
-          title: 'Routines',
+          title: t('tabs.routines'),
           tabBarIcon: ({ color, focused }) =>
             isIOS ? (
               <SymbolView name={focused ? 'sun.max.fill' : 'sun.max'} tintColor={color} size={22} />
@@ -119,7 +122,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="inbox"
         options={{
-          title: 'Inbox',
+          title: t('tabs.inbox'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="tray" tintColor={color} size={22} />
@@ -135,7 +138,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
+          title: t('tabs.settings'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="slider.horizontal.3" tintColor={color} size={22} />

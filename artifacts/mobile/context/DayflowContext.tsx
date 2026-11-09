@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { formatClock } from '@/i18n/locale';
+import { applyLanguage, relocalize, tr } from '@/i18n';
+import type { LanguageSetting } from '@/i18n/locale';
 
 /* --------------------------------- Types --------------------------------- */
 
@@ -11,12 +14,12 @@ export const TASK_TONES: TaskTone[] = ['lilac', 'sky', 'sage', 'apricot', 'rose'
  * pain points: meds & body care, food, sleep, focus work, chores, people.
  */
 export const ICON_GROUPS = [
-  { label: 'Body & care', icons: ['pill', 'cup-water', 'shower-head', 'toothbrush', 'tshirt-crew', 'bed'] },
-  { label: 'Food', icons: ['food-apple', 'silverware-fork-knife', 'coffee'] },
-  { label: 'Move & rest', icons: ['walk', 'run', 'yoga', 'meditation', 'sofa', 'weather-sunny', 'weather-night'] },
-  { label: 'Focus', icons: ['briefcase', 'laptop', 'book-open-variant', 'school', 'pencil', 'brain', 'target', 'timer-sand'] },
-  { label: 'Home & errands', icons: ['broom', 'washing-machine', 'trash-can', 'cart', 'cash', 'car', 'home', 'dog'] },
-  { label: 'People & fun', icons: ['email', 'phone', 'account-group', 'calendar-check', 'music', 'gamepad-variant', 'palette', 'heart', 'emoticon-happy', 'star'] },
+  { label: 'icons.body', icons: ['pill', 'cup-water', 'shower-head', 'toothbrush', 'tshirt-crew', 'bed'] },
+  { label: 'icons.food', icons: ['food-apple', 'silverware-fork-knife', 'coffee'] },
+  { label: 'icons.move', icons: ['walk', 'run', 'yoga', 'meditation', 'sofa', 'weather-sunny', 'weather-night'] },
+  { label: 'icons.focus', icons: ['briefcase', 'laptop', 'book-open-variant', 'school', 'pencil', 'brain', 'target', 'timer-sand'] },
+  { label: 'icons.home', icons: ['broom', 'washing-machine', 'trash-can', 'cart', 'cash', 'car', 'home', 'dog'] },
+  { label: 'icons.people', icons: ['email', 'phone', 'account-group', 'calendar-check', 'music', 'gamepad-variant', 'palette', 'heart', 'emoticon-happy', 'star'] },
 ] as const;
 export const TASK_ICONS = ICON_GROUPS.flatMap((g) => g.icons);
 export type TaskIcon = (typeof ICON_GROUPS)[number]['icons'][number];
@@ -93,10 +96,10 @@ export type TaskDraft = Pick<DayTask, 'title' | 'start' | 'duration' | 'tone' | 
 export type EditScope = 'one' | 'series';
 
 export const REPEAT_PRESETS: Array<{ key: string; label: string; days: number[] }> = [
-  { key: 'once', label: 'Once', days: [] },
-  { key: 'daily', label: 'Every day', days: [0, 1, 2, 3, 4, 5, 6] },
-  { key: 'weekdays', label: 'Weekdays', days: [1, 2, 3, 4, 5] },
-  { key: 'weekends', label: 'Weekends', days: [0, 6] },
+  { key: 'once', label: 'addTask.repeatOnce', days: [] },
+  { key: 'daily', label: 'addTask.repeatDaily', days: [0, 1, 2, 3, 4, 5, 6] },
+  { key: 'weekdays', label: 'addTask.repeatWeekdays', days: [1, 2, 3, 4, 5] },
+  { key: 'weekends', label: 'addTask.repeatWeekends', days: [0, 6] },
 ];
 
 export const REMINDER_LEADS = [5, 10, 15] as const;
@@ -155,12 +158,15 @@ export interface Treat {
   icon: TaskIcon;
 }
 
-export const DEFAULT_TREATS: Treat[] = [
-  { id: 'treat-music', title: 'Play one favourite song', minutes: 5, icon: 'music' },
-  { id: 'treat-walk', title: 'Step outside for fresh air', minutes: 5, icon: 'walk' },
-  { id: 'treat-snack', title: 'Make a nice drink or snack', minutes: 10, icon: 'coffee' },
-  { id: 'treat-stretch', title: 'Stretch it out', minutes: 3, icon: 'yoga' },
-];
+/** Starter joy list, in the user's language at the moment it's created. */
+export function defaultTreats(): Treat[] {
+  return [
+    { id: 'treat-music', title: tr('seed.treatMusic'), minutes: 5, icon: 'music' },
+    { id: 'treat-walk', title: tr('seed.treatAir'), minutes: 5, icon: 'walk' },
+    { id: 'treat-snack', title: tr('seed.treatSnack'), minutes: 10, icon: 'coffee' },
+    { id: 'treat-stretch', title: tr('seed.treatStretch'), minutes: 3, icon: 'yoga' },
+  ];
+}
 
 export interface Profile {
   wake: number;
@@ -203,6 +209,8 @@ interface DayflowState {
   showUpDays: string[];
   /** Monday (YYYY-MM-DD) of the last week that was reviewed */
   lastReviewWeek: string | null;
+  /** UI language; "system" follows the phone */
+  language: LanguageSetting;
 }
 
 interface DayflowContextValue extends DayflowState {
@@ -233,6 +241,7 @@ interface DayflowContextValue extends DayflowState {
   addTreat: (title: string, minutes: number, icon: TaskIcon) => void;
   removeTreat: (id: string) => void;
   markWeekReviewed: (monday: string) => void;
+  setLanguage: (language: LanguageSetting) => void;
   /** Add several inbox items at once (quick capture imports) */
   addInboxTasks: (titles: string[]) => void;
   markEnergyHandled: (date: string) => void;
@@ -264,13 +273,9 @@ interface DayflowContextValue extends DayflowState {
 
 /* -------------------------------- Helpers -------------------------------- */
 
+/** Minutes since midnight → a clock time in the user's language (12h or 24h as natural). */
 export function formatMinutes(total: number) {
-  if (!Number.isFinite(total)) return '--:--';
-  total = Math.round(total);
-  const h = Math.floor(total / 60) % 24;
-  const m = ((total % 60) + 60) % 60;
-  const hour12 = h % 12 === 0 ? 12 : h % 12;
-  return `${hour12}:${m.toString().padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  return formatClock(total);
 }
 
 export function toDateKey(d: Date) {
@@ -378,6 +383,38 @@ export function isEssential(t: Pick<DayTask, 'essential' | 'icon'>) {
   return !!t.essential || ESSENTIAL_ICONS.includes(t.icon);
 }
 
+const SEED_STEPS: Record<string, string> = {
+  'm-1': 'seed.stepMeds', 'm-2': 'seed.stepCurtains', 'm-3': 'seed.stepDressed', 'm-4': 'seed.stepChoose',
+  'e-1': 'seed.stepEssentials', 'e-2': 'seed.stepSurface', 'e-3': 'seed.stepBook',
+};
+const SEED_ROUTINES: Record<string, [string, string]> = {
+  morning: ['seed.routineMorning', 'seed.routineMorningSub'],
+  evening: ['seed.routineEvening', 'seed.routineEveningSub'],
+};
+const SEED_INBOX: Record<string, string> = {
+  'inbox-1': 'seed.inboxDentist', 'inbox-2': 'seed.inboxLaundry', 'inbox-3': 'seed.inboxUpdate',
+};
+const SEED_TREATS: Record<string, string> = {
+  'treat-music': 'seed.treatMusic', 'treat-walk': 'seed.treatAir', 'treat-snack': 'seed.treatSnack', 'treat-stretch': 'seed.treatStretch',
+};
+
+/** Re-translate starter content the user hasn't edited (call after switching language). */
+function relocalizeSeeds(s: DayflowState): DayflowState {
+  return {
+    ...s,
+    routines: s.routines.map((r) => {
+      const keys = SEED_ROUTINES[r.id];
+      return {
+        ...r,
+        ...(keys ? { title: relocalize(keys[0], r.title), subtitle: relocalize(keys[1], r.subtitle) } : {}),
+        steps: r.steps.map((st) => (SEED_STEPS[st.id] ? { ...st, title: relocalize(SEED_STEPS[st.id], st.title) } : st)),
+      };
+    }),
+    inboxTasks: s.inboxTasks.map((t) => (SEED_INBOX[t.id] ? { ...t, title: relocalize(SEED_INBOX[t.id], t.title) } : t)),
+    treats: s.treats.map((t) => (SEED_TREATS[t.id] ? { ...t, title: relocalize(SEED_TREATS[t.id], t.title) } : t)),
+  };
+}
+
 /** Create missing instances of repeating tasks for the given dates. */
 function materialize(tasks: DayTask[], recurring: RecurringTask[], dates: string[]): DayTask[] {
   const additions: DayTask[] = [];
@@ -412,16 +449,16 @@ export function buildStarterDay(profile: Profile, date: string): DayTask[] {
   });
   const focusLen = struggle === 'hyperfocus' ? 45 : struggle === 'starting' ? 15 : 30;
   const focusTitle =
-    struggle === 'starting' ? 'Start with a tiny step' : struggle === 'overwhelm' ? 'Pick just one thing' : 'Focus block';
+    struggle === 'starting' ? tr('seed.tinyStep') : struggle === 'overwhelm' ? tr('seed.pickOne') : tr('seed.focusBlock');
   return [
-    mk('Wake up gently', wake, 15, 'lemon', 'weather-sunny', 'Routine'),
-    mk('Meds & a glass of water', wake + 15, 5, 'sky', 'pill', 'Self-care'),
-    mk('Breakfast', wake + 30, 30, 'apricot', 'food-apple', 'Self-care'),
+    mk(tr('seed.wake'), wake, 15, 'lemon', 'weather-sunny', 'Routine'),
+    mk(tr('seed.meds'), wake + 15, 5, 'sky', 'pill', 'Self-care'),
+    mk(tr('seed.breakfast'), wake + 30, 30, 'apricot', 'food-apple', 'Self-care'),
     mk(focusTitle, wake + 90, focusLen, 'lilac', 'target', 'Focus time'),
-    mk('Move your body', wake + 90 + focusLen + 15, 15, 'sage', 'walk', 'Reset'),
-    mk('Lunch break', Math.max(12 * 60, wake + 240), 45, 'rose', 'silverware-fork-knife', 'Reset'),
-    mk(struggle === 'hyperfocus' ? 'Check the clock & stretch' : 'Small admin task', Math.max(14 * 60, wake + 360), 25, 'sky', struggle === 'hyperfocus' ? 'timer-sand' : 'email', 'Small task'),
-    mk('Wind down', Math.max(wake + 60, sleep - 45), 30, 'lilac', 'weather-night', 'Routine'),
+    mk(tr('seed.move'), wake + 90 + focusLen + 15, 15, 'sage', 'walk', 'Reset'),
+    mk(tr('seed.lunch'), Math.max(12 * 60, wake + 240), 45, 'rose', 'silverware-fork-knife', 'Reset'),
+    mk(struggle === 'hyperfocus' ? tr('seed.stretch') : tr('seed.admin'), Math.max(14 * 60, wake + 360), 25, 'sky', struggle === 'hyperfocus' ? 'timer-sand' : 'email', 'Small task'),
+    mk(tr('seed.windDown'), Math.max(wake + 60, sleep - 45), 30, 'lilac', 'weather-night', 'Routine'),
   ];
 }
 
@@ -429,37 +466,38 @@ export function buildStarterDay(profile: Profile, date: string): DayTask[] {
 
 export const STORAGE_KEY = 'dayflow-v4';
 
-const initialState: DayflowState = {
+/** Built lazily so starter content uses the language detected at launch. */
+const makeInitialState = (): DayflowState => ({
   dayTasks: [],
   inboxTasks: [
-    { id: 'inbox-1', title: 'Book a dentist appointment', done: false },
-    { id: 'inbox-2', title: 'Put laundry away', done: false },
-    { id: 'inbox-3', title: 'Send the project update', done: false },
+    { id: 'inbox-1', title: tr('seed.inboxDentist'), done: false },
+    { id: 'inbox-2', title: tr('seed.inboxLaundry'), done: false },
+    { id: 'inbox-3', title: tr('seed.inboxUpdate'), done: false },
   ],
   routines: [
     {
       id: 'morning',
-      title: 'A gentle morning',
-      subtitle: 'Start without rushing',
+      title: tr('seed.routineMorning'),
+      subtitle: tr('seed.routineMorningSub'),
       tone: 'lemon',
       icon: 'weather-sunny',
       steps: [
-        { id: 'm-1', title: 'Take meds with a glass of water', duration: 2, done: false },
-        { id: 'm-2', title: 'Open the curtains', duration: 2, done: false },
-        { id: 'm-3', title: 'Get dressed', duration: 8, done: false },
-        { id: 'm-4', title: 'Choose one thing for today', duration: 3, done: false },
+        { id: 'm-1', title: tr('seed.stepMeds'), duration: 2, done: false },
+        { id: 'm-2', title: tr('seed.stepCurtains'), duration: 2, done: false },
+        { id: 'm-3', title: tr('seed.stepDressed'), duration: 8, done: false },
+        { id: 'm-4', title: tr('seed.stepChoose'), duration: 3, done: false },
       ],
     },
     {
       id: 'evening',
-      title: 'An easier evening',
-      subtitle: 'Make tomorrow kinder',
+      title: tr('seed.routineEvening'),
+      subtitle: tr('seed.routineEveningSub'),
       tone: 'lilac',
       icon: 'weather-night',
       steps: [
-        { id: 'e-1', title: 'Put tomorrow’s essentials by the door', duration: 4, done: false },
-        { id: 'e-2', title: 'Reset one small surface', duration: 5, done: false },
-        { id: 'e-3', title: 'Wind down with a book', duration: 10, done: false },
+        { id: 'e-1', title: tr('seed.stepEssentials'), duration: 4, done: false },
+        { id: 'e-2', title: tr('seed.stepSurface'), duration: 5, done: false },
+        { id: 'e-3', title: tr('seed.stepBook'), duration: 10, done: false },
       ],
     },
   ],
@@ -482,17 +520,18 @@ const initialState: DayflowState = {
   energyLog: [],
   survivalDays: [],
   energyPromptDate: null,
-  treats: DEFAULT_TREATS,
+  treats: defaultTreats(),
   showUpDays: [],
   lastReviewWeek: null,
-};
+  language: 'system',
+});
 
 /* -------------------------------- Provider ------------------------------- */
 
 const DayflowContext = createContext<DayflowContextValue | null>(null);
 
 export function DayflowProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<DayflowState>(initialState);
+  const [state, setState] = useState<DayflowState>(makeInitialState);
   const [hydrated, setHydrated] = useState(false);
   const [selectedDate, setSelectedDate] = useState(todayKey);
 
@@ -506,12 +545,15 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
         const parsed = stored ? (JSON.parse(stored) as Partial<DayflowState>) : {};
         setState((current) => {
           const merged: DayflowState = { ...current, ...parsed, activeRoutineId: null };
+          // Apply the saved language before the first hydrated render.
+          applyLanguage(merged.language ?? 'system');
+          Object.assign(merged, relocalizeSeeds(merged)); // e.g. phone language changed since last launch
           const [tasks, moved] = rollOver(normalizeDayTasks(merged.dayTasks, today), today);
           const recurring = Array.isArray(merged.recurring) ? merged.recurring : [];
           if (!Array.isArray(merged.timeLog)) merged.timeLog = [];
           if (!Array.isArray(merged.energyLog)) merged.energyLog = [];
           if (!Array.isArray(merged.survivalDays)) merged.survivalDays = [];
-          if (!Array.isArray(merged.treats)) merged.treats = DEFAULT_TREATS;
+          if (!Array.isArray(merged.treats)) merged.treats = defaultTreats();
           if (!Array.isArray(merged.showUpDays)) merged.showUpDays = [];
           if (!merged.showUpDays.includes(today)) merged.showUpDays = [...merged.showUpDays, today].slice(-400);
           const away = merged.lastOpenDate ? Math.max(0, daysBetween(merged.lastOpenDate, today) - 1) : 0;
@@ -554,6 +596,11 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
     }, 60_000);
     return () => clearInterval(id);
   }, []);
+
+  // Keep i18n + date/time formatting in sync with the chosen language.
+  useEffect(() => {
+    applyLanguage(state.language);
+  }, [state.language]);
 
   // Show repeating tasks on whichever day is being viewed (today or later).
   useEffect(() => {
@@ -730,6 +777,12 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
       },
       removeTreat: (id) => set((s) => ({ ...s, treats: s.treats.filter((t) => t.id !== id) })),
       markWeekReviewed: (monday) => set((s) => ({ ...s, lastReviewWeek: monday })),
+      setLanguage: (language) => {
+        // Switch i18n *before* the state update so every screen re-renders in the new language
+        // (inactive tabs are frozen and won't get a second render).
+        applyLanguage(language);
+        set((s) => relocalizeSeeds({ ...s, language }));
+      },
       addInboxTasks: (titles) => {
         const clean = titles.map((t) => t.trim()).filter(Boolean);
         if (!clean.length) return;
@@ -841,7 +894,7 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
           const steps: RoutineStep[] = draft.steps
             .filter((st) => st.title.trim())
             .map((st) => ({ id: st.id ?? uid('step'), title: st.title.trim(), duration: Math.max(1, st.duration), done: false }));
-          const routine: Routine = { ...draft, title: draft.title.trim() || 'My routine', id: id ?? uid('routine'), steps };
+          const routine: Routine = { ...draft, title: draft.title.trim() || tr('routineEdit.fallbackName'), id: id ?? uid('routine'), steps };
           return {
             ...s,
             routines: id ? s.routines.map((r) => (r.id === id ? routine : r)) : [...s.routines, routine],

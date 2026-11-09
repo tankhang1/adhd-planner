@@ -5,13 +5,17 @@ import type { HexColor, WidgetTaskHandlerProps } from 'react-native-android-widg
 import { STORAGE_KEY } from '@/context/DayflowContext';
 import type { DayTask } from '@/context/DayflowContext';
 import { buildWidgetPayload, currentAndNext } from '@/services/widgetData';
+import { applyLanguage, formatClock, tr } from '@/i18n';
+import type { LanguageSetting } from '@/i18n';
 import type { WidgetTask } from '@/services/widgetData';
 
 const INK = '#1F1B3A' as HexColor;
 const MUTED = '#5E5A78' as HexColor;
 
-const hhmm = (unix: number) =>
-  new Date(unix * 1000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+const hhmm = (unix: number) => {
+  const d = new Date(unix * 1000);
+  return formatClock(d.getHours() * 60 + d.getMinutes());
+};
 
 function TodayWidget({ current, next, later }: { current: WidgetTask | null; next: WidgetTask | null; later: WidgetTask[] }) {
   const main = current ?? next;
@@ -26,15 +30,15 @@ function TodayWidget({ current, next, later }: { current: WidgetTask | null; nex
       style={{ height: 'match_parent', width: 'match_parent', backgroundColor: bg, borderRadius: 24, padding: 16, flexDirection: 'row' }}
     >
       <FlexWidget style={{ flex: 1, flexDirection: 'column', justifyContent: 'center' }}>
-        <TextWidget text={current ? 'NOW' : main ? 'NEXT' : 'ALL CLEAR'} style={{ fontSize: 11, fontWeight: '800', color: ink }} />
+        <TextWidget text={current ? tr('widget.now') : main ? tr('widget.next') : tr('widget.allClear')} style={{ fontSize: 11, fontWeight: '800', color: ink }} />
         <TextWidget
-          text={main?.title ?? 'Nothing else planned'}
+          text={main?.title ?? tr('widget.nothingElse')}
           maxLines={2}
           truncate="END"
           style={{ fontSize: 17, fontWeight: '700', color: INK, marginTop: 4 }}
         />
         <TextWidget
-          text={current ? `${minsLeft} min left` : main ? `at ${hhmm(main.start)}` : 'Enjoy the free time'}
+          text={current ? tr('widget.minLeft', { count: minsLeft }) : main ? tr('widget.at', { time: hhmm(main.start) }) : tr('widget.enjoy')}
           style={{ fontSize: 13, color: MUTED, marginTop: 4 }}
         />
         {current ? (
@@ -47,7 +51,7 @@ function TodayWidget({ current, next, later }: { current: WidgetTask | null; nex
 
       {later.length ? (
         <FlexWidget style={{ flex: 1, flexDirection: 'column', marginLeft: 14, justifyContent: 'center' }}>
-          <TextWidget text="LATER" style={{ fontSize: 11, fontWeight: '800', color: MUTED }} />
+          <TextWidget text={tr('widget.later')} style={{ fontSize: 11, fontWeight: '800', color: MUTED }} />
           {later.slice(0, 3).map((t) => (
             <FlexWidget key={t.id} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
               <FlexWidget style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.ink as HexColor, marginRight: 8 }} />
@@ -68,7 +72,10 @@ export async function renderTodayWidget() {
   let tasks: DayTask[] = [];
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    tasks = raw ? ((JSON.parse(raw) as { dayTasks?: DayTask[] }).dayTasks ?? []) : [];
+    const saved = raw ? (JSON.parse(raw) as { dayTasks?: DayTask[]; language?: LanguageSetting }) : {};
+    tasks = saved.dayTasks ?? [];
+    // Headless widget task: the app isn't running, so apply the user's language here.
+    applyLanguage(saved.language ?? 'system');
   } catch {}
   const payload = buildWidgetPayload(tasks);
   const { current, next } = currentAndNext(payload);

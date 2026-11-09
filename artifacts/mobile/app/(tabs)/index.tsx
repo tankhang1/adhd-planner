@@ -7,12 +7,14 @@ import Svg, { Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDayflow, useVisualMode, formatMinutes, toDateKey, fromDateKey, todayKey, leaveTimes } from '@/context/DayflowContext';
 import { useCalendarEvents } from '@/services/calendar';
+import { formatDate, formatDuration, tr as t, useT } from '@/i18n';
 import { EnergyCheckIn } from '@/components/EnergyCheckIn';
 import { BuddyDialog, DialogButton } from '@/components/BuddyDialog';
 import { CloudBuddy } from '@/components/CloudBuddy';
 import { Celebration } from '@/components/Celebration';
 import { WeeklyReview } from '@/components/WeeklyReview';
 import { weekToReview } from '@/services/weekly';
+import { collectNudges } from '@/services/nudges';
 import type { CalendarEvent } from '@/services/calendar';
 import type { DayTask } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
@@ -58,7 +60,7 @@ function WeekStrip({ today, selected, onSelect, busy }: { today: Date; selected:
             style={[styles.weekDay, { backgroundColor: isSel ? colors.primary : 'transparent' }]}
           >
             <Text maxFontSizeMultiplier={1.3} style={[styles.weekDow, { color: isSel ? colors.primaryForeground : colors.mutedForeground }]}>
-              {d.toLocaleDateString('en-US', { weekday: 'narrow' })}
+              {formatDate(d, { weekday: 'narrow' })}
             </Text>
             <Text maxFontSizeMultiplier={1.3} style={[styles.weekNum, { color: isSel ? colors.primaryForeground : colors.foreground }]}>
               {d.getDate()}
@@ -89,17 +91,17 @@ function DayLeft({ now }: { now: number }) {
   const wake = profile?.wake ?? 7 * 60 + 30;
   const sleep = profile?.sleep ?? 23 * 60;
   const end = sleep > wake ? sleep : sleep + 24 * 60; // bedtime after midnight
-  const t = now < wake && end > 24 * 60 ? now + 24 * 60 : now;
-  if (t < wake) return null;
+  const at = now < wake && end > 24 * 60 ? now + 24 * 60 : now;
+  if (at < wake) return null;
 
-  const left = Math.max(0, Math.round(end - t));
-  const progress = Math.min(1, (t - wake) / (end - wake));
+  const left = Math.max(0, Math.round(end - at));
+  const progress = Math.min(1, (at - wake) / (end - wake));
   const label =
     left === 0
-      ? 'Past bedtime — time to rest'
+      ? t('today.dayLeftPast')
       : left < 60
-        ? `${left} min until bedtime`
-        : `About ${Math.floor(left / 60)}h${left % 60 >= 15 ? ` ${Math.round((left % 60) / 15) * 15}m` : ''} left before bed`;
+        ? t('today.dayLeftMinutes', { count: left })
+        : t('today.dayLeftHours', { time: formatDuration(Math.floor(left / 60) * 60 + (left % 60 >= 15 ? Math.round((left % 60) / 15) * 15 : 0)) });
 
   return (
     <View
@@ -160,9 +162,9 @@ function NowCard({ tasks, now }: { tasks: DayTask[]; now: number }) {
           <Feather name="check" size={22} color={colors.sageInk} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.nowEyebrow, { color: colors.sageInk }]}>ALL CLEAR</Text>
-          <Text style={[styles.nowTitle, { color: colors.foreground }]}>Nothing else planned</Text>
-          <Text style={[styles.nowMeta, { color: colors.mutedForeground }]}>Enjoy the free time.</Text>
+          <Text style={[styles.nowEyebrow, { color: colors.sageInk }]}>{t('today.allClear')}</Text>
+          <Text style={[styles.nowTitle, { color: colors.foreground }]}>{t('today.nothingElse')}</Text>
+          <Text style={[styles.nowMeta, { color: colors.mutedForeground }]}>{t('today.enjoyFree')}</Text>
         </View>
       </View>
     );
@@ -176,12 +178,12 @@ function NowCard({ tasks, now }: { tasks: DayTask[]; now: number }) {
   const remaining = isNow ? Math.ceil(task.start + task.duration - now) : Math.ceil(task.start - now);
   const progress = isNow ? (now - task.start) / task.duration : 0;
   const remainingLabel =
-    remaining >= 60 ? `${Math.floor(remaining / 60)}h ${remaining % 60}m` : `${remaining} min`;
+    formatDuration(remaining);
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${isNow ? 'Now' : 'Up next'}: ${task.title}. Open focus timer.`}
+      accessibilityLabel={t('today.nowA11y', { state: isNow ? t('today.nowState') : t('today.upNextState'), title: task.title })}
       onPress={() => router.push({ pathname: '/focus', params: { taskId: task.id } })}
       testID="now-card"
       style={({ pressed }) => [
@@ -198,16 +200,16 @@ function NowCard({ tasks, now }: { tasks: DayTask[]; now: number }) {
         </View>
       </View>
       <View style={{ flex: 1, gap: 3 }}>
-        <Text style={[styles.nowEyebrow, { color: ink }]}>{isNow ? 'RIGHT NOW' : getReady ? 'GET READY' : 'UP NEXT'}</Text>
+        <Text style={[styles.nowEyebrow, { color: ink }]}>{isNow ? t('today.rightNow') : getReady ? t('today.getReady') : t('today.upNext')}</Text>
         <Text style={[styles.nowTitle, { color: colors.foreground }]} numberOfLines={2}>
           {task.title}
         </Text>
         <Text style={[styles.nowMeta, { color: colors.mutedForeground }]}>
           {isNow
-            ? `${remainingLabel} left`
+            ? t('today.timeLeft', { time: remainingLabel })
             : getReady
-              ? leaveIn > 0 ? `Leave in ${leaveIn} min` : 'Time to leave!'
-              : trip ? `Leave at ${formatMinutes(trip.leave)}` : `Starts in ${remainingLabel}`}
+              ? leaveIn > 0 ? t('today.leaveIn', { count: leaveIn }) : t('today.timeToLeave')
+              : trip ? t('today.leaveAt', { time: formatMinutes(trip.leave) }) : t('today.startsIn', { time: remainingLabel })}
         </Text>
       </View>
       <View style={[styles.nowPlay, { backgroundColor: ink }]}>
@@ -237,8 +239,8 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
       </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${task.title}, ${formatMinutes(task.start)}, ${task.duration} minutes.`}
-        accessibilityHint="Tap to open the focus timer. Long press to edit."
+        accessibilityLabel={t('today.blockA11y', { title: task.title, time: formatMinutes(task.start), count: task.duration })}
+        accessibilityHint={t('today.blockHint')}
         onPress={() => router.push({ pathname: '/focus', params: { taskId: task.id } })}
         onLongPress={() => {
           void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -269,20 +271,20 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
             {task.title}
           </Text>
           {task.rolledOver ? (
-            <Text style={[styles.blockMeta, { color: ink, fontWeight: '700' }]}>Carried over from yesterday</Text>
+            <Text style={[styles.blockMeta, { color: ink, fontWeight: '700' }]}>{t('today.carriedOver')}</Text>
           ) : null}
           {task.travel && !task.done && !active ? (
             <Text style={[styles.blockMeta, { color: ink, fontWeight: '700' }]}>
-              <Feather name="navigation" size={11} color={ink} /> Leave by {formatMinutes(task.start - task.travel)}
+              <Feather name="navigation" size={11} color={ink} /> {t('today.leaveBy', { time: formatMinutes(task.start - task.travel) })}
             </Text>
           ) : null}
           {active ? (
             <Text style={[styles.blockMeta, { color: ink, fontWeight: '700' }]}>
-              Now · {Math.max(1, Math.ceil(task.start + task.duration - now))} min left
+              {t('today.nowLeft', { count: Math.max(1, Math.ceil(task.start + task.duration - now)) })}
             </Text>
           ) : null}
           <Text style={[styles.blockMeta, { color: colors.mutedForeground }]}>
-            {formatMinutes(task.start)} – {formatMinutes(task.start + task.duration)} · {task.duration} min
+            {formatMinutes(task.start)} – {formatMinutes(task.start + task.duration)} · {t('common.minutes', { count: task.duration })}
             {task.seriesId ? '  ' : ''}
             {task.seriesId ? <Feather name="repeat" size={11} color={colors.mutedForeground} /> : null}
           </Text>
@@ -299,7 +301,7 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
         <Pressable
           accessibilityRole="checkbox"
           accessibilityState={{ checked: task.done }}
-          accessibilityLabel={`${task.done ? 'Mark incomplete' : 'Mark complete'}: ${task.title}`}
+          accessibilityLabel={`${task.done ? t('today.markIncomplete', { title: task.title }) : t('today.markComplete', { title: task.title })}`}
           hitSlop={12}
           onPress={onToggle}
           testID={`toggle-${task.id}`}
@@ -323,7 +325,7 @@ function CalendarBlock({ event }: { event: CalendarEvent }) {
         <Text maxFontSizeMultiplier={1.3} style={[styles.timeText, { color: colors.mutedForeground }]}>{formatMinutes(event.start)}</Text>
       </View>
       <View
-        accessibilityLabel={`Calendar event ${event.title}, ${formatMinutes(event.start)}`}
+        accessibilityLabel={t('today.calendarA11y', { title: event.title, time: formatMinutes(event.start) })}
         style={[styles.block, styles.calBlock, { minHeight: Math.max(56, event.duration * PX_PER_MIN * 0.6), borderColor: colors.border, backgroundColor: colors.card }]}
       >
         <View style={[styles.calStripe, { backgroundColor: event.color ?? colors.skyInk }]} />
@@ -366,14 +368,14 @@ function OverrunNudge({ task, now, allowDialog }: { task: DayTask; now: number; 
       <BuddyDialog
         visible={allowDialog && dialogFor === task.id}
         mood="okay"
-        title={`Still on “${task.title}”?`}
-        message={`Time’s up${over > 1 ? ` (${over} min over)` : ''}. No rush — want a little more time?`}
+        title={t('today.overrunTitle', { title: task.title })}
+        message={over > 1 ? t('today.overrunMessageOver', { count: over }) : t('today.overrunMessage')}
         onClose={() => setDialogFor(null)}
       >
-        <DialogButton label="10 more minutes" testID="overrun-extend" onPress={extend} />
-        <DialogButton label="I’m done" variant="secondary" testID="overrun-done" onPress={done} />
+        <DialogButton label={t('today.overrunExtend')} testID="overrun-extend" onPress={extend} />
+        <DialogButton label={t('today.overrunDone')} variant="secondary" testID="overrun-done" onPress={done} />
         <DialogButton
-          label="Push the rest of my day 15 min"
+          label={t('today.overrunShift')}
           variant="text"
           testID="overrun-shift"
           onPress={() => {
@@ -383,18 +385,6 @@ function OverrunNudge({ task, now, allowDialog }: { task: DayTask; now: number; 
         />
       </BuddyDialog>
 
-      <View style={[styles.slim, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <ActivityIcon name={task.icon} size={18} color={ink} />
-        <Text style={[styles.slimHint, { color: colors.foreground }]} numberOfLines={1}>
-          {task.title} ran over · {over}m
-        </Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Add 10 minutes" onPress={extend} style={[styles.pill, { backgroundColor: colors.primary }]}>
-          <Text style={[styles.pillText, { color: colors.primaryForeground }]}>+10m</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Mark done" onPress={done} style={[styles.pill, { backgroundColor: colors.muted }]}>
-          <Feather name="check" size={15} color={colors.foreground} />
-        </Pressable>
-      </View>
     </>
   );
 }
@@ -406,16 +396,16 @@ function SurvivalBanner({ date, parkedCount }: { date: string; parkedCount: numb
     <View style={[styles.slim, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <MaterialCommunityIcons name="lifebuoy" size={18} color={colors.roseInk} />
       <Text style={[styles.slimHint, { color: colors.foreground }]} numberOfLines={2}>
-        Basics only today{parkedCount ? ` · ${parkedCount} set aside` : ''}
+        {parkedCount ? t('today.survivalSetAside', { count: parkedCount }) : t('today.survival')}
       </Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Bring set-aside tasks back"
+        accessibilityLabel={t('today.bringBackA11y')}
         onPress={() => endSurvivalDay(date)}
         testID="survival-end"
         style={({ pressed }) => [styles.pill, { backgroundColor: colors.muted, opacity: pressed ? 0.8 : 1 }]}
       >
-        <Text style={[styles.pillText, { color: colors.foreground }]}>Bring back</Text>
+        <Text style={[styles.pillText, { color: colors.foreground }]}>{t('today.bringBack')}</Text>
       </Pressable>
     </View>
   );
@@ -426,19 +416,19 @@ function DaySummary({ tasks, past }: { tasks: DayTask[]; past: boolean }) {
   const done = tasks.filter((t) => t.done);
   const minutes = done.reduce((sum, t) => sum + t.duration, 0);
   const allDone = tasks.length > 0 && done.length === tasks.length;
-  const time = `${Math.floor(minutes / 60) ? `${Math.floor(minutes / 60)}h ` : ''}${minutes % 60}m`;
-  const n = `${done.length} ${done.length === 1 ? 'thing' : 'things'}`;
+  const time = formatDuration(minutes);
+  const count = done.length;
 
   // Copy depends on the moment: a past day, an evening wrap-up, or everything finished.
   const [headline, message] = past
-    ? done.length
-      ? [`You did ${n}`, `${time} of showing up. That counts.`]
-      : ['A quiet day', 'Rest is part of the plan, too.']
+    ? count
+      ? [t('today.summaryYouDid', { count }), t('today.summaryShowingUp', { time })]
+      : [t('today.summaryQuiet'), t('today.summaryQuietBody')]
     : allDone
-      ? ['All done for today!', 'You finished everything. The rest of the day is yours.']
-      : done.length
-        ? [`${n} done today`, `${time} of real effort. Be proud of that.`]
-        : ['Some days are like this', 'Tomorrow is a fresh page. Be kind to yourself tonight.'];
+      ? [t('today.summaryAllDone'), t('today.summaryAllDoneBody')]
+      : count
+        ? [t('today.summaryDone', { count }), t('today.summaryEffort', { time })]
+        : [t('today.summaryNone'), t('today.summaryNoneBody')];
   return (
     <View
       style={[styles.summary, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -457,7 +447,7 @@ function DaySummary({ tasks, past }: { tasks: DayTask[]; past: boolean }) {
 function NowLine({ label }: { label: string }) {
   const colors = useColors();
   return (
-    <View style={styles.nowLineRow} accessibilityLabel={`Current time ${label}`}>
+    <View style={styles.nowLineRow} accessibilityLabel={t('today.currentTime', { time: label })}>
       <View style={[styles.nowPill, { backgroundColor: colors.accent }]}>
         <Text maxFontSizeMultiplier={1.3} style={styles.nowPillText}>{label}</Text>
       </View>
@@ -471,16 +461,16 @@ function Gap({ minutes }: { minutes: number }) {
   const { bufferMinutes } = useDayflow();
   if (minutes > 0 && minutes < 30 && bufferMinutes > 0 && minutes <= bufferMinutes + 5) {
     return (
-      <View style={styles.gapRow} accessibilityLabel={`${minutes} minutes to switch`}>
+      <View style={styles.gapRow} accessibilityLabel={t('today.toSwitch', { count: minutes })}>
         <View style={styles.timeCol} />
         <View style={[styles.gapLine, { borderColor: colors.border, height: 14 }]} />
         <Feather name="wind" size={11} color={colors.mutedForeground} />
-        <Text style={[styles.gapText, { color: colors.mutedForeground }]}>{minutes}m to switch</Text>
+        <Text style={[styles.gapText, { color: colors.mutedForeground }]}>{t('today.toSwitch', { count: minutes })}</Text>
       </View>
     );
   }
   if (minutes < 30) return null;
-  const label = minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60 ? `${minutes % 60}m ` : ''}free` : `${minutes}m free`;
+  const label = t('today.free', { time: formatDuration(minutes) });
   return (
     <View style={styles.gapRow}>
       <View style={styles.timeCol} />
@@ -494,6 +484,7 @@ function Gap({ minutes }: { minutes: number }) {
 
 export default function TodayScreen() {
   const colors = useColors();
+  useT(); // re-render when the language changes
   const insets = useSafeAreaInsets();
   const web = Platform.OS === 'web';
   const {
@@ -520,6 +511,7 @@ export default function TodayScreen() {
         .sort((a, b) => b.start + b.duration - (a.start + a.duration))[0]
     : undefined;
   const overrun = overrunCandidate;
+  const nudgeCount = isToday ? collectNudges(dayTasks, selectedDate, now, isSurvivalDay(selectedDate)).length : 0;
   // Tier 1 nudge: a single soft haptic the moment a block runs over (while the app is open).
   const nudgedRef = React.useRef<string | null>(null);
   useEffect(() => {
@@ -537,8 +529,8 @@ export default function TodayScreen() {
   const [celebration, setCelebration] = useState<string | null>(null);
   const celebrate = () => {
     const doneToday = sorted.filter((t) => t.done).length + 1;
-    const lines = ['Nice one!', 'Done and dusted!', 'One less thing!', 'Look at you go!', 'That counts!'];
-    const msg = doneToday >= 3 && doneToday % 3 === 0 ? `${doneToday} done today!` : lines[Math.floor(Math.random() * lines.length)];
+    const lines = [1, 2, 3, 4, 5].map((i) => t(`today.celebrate${i}`));
+    const msg = doneToday >= 3 && doneToday % 3 === 0 ? t('today.celebrateCount', { count: doneToday }) : lines[Math.floor(Math.random() * lines.length)];
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setCelebration(msg);
   };
@@ -563,8 +555,8 @@ export default function TodayScreen() {
   const endOf = (it: Item) => startOf(it) + (it.kind === 'task' ? it.task.duration : it.event.duration);
   const nowIndex = isToday ? items.findIndex((it) => startOf(it) > now) : -2;
   const hour = clock.getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-  const nowLabel = clock.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const greeting = hour < 12 ? t('today.greetingMorning') : hour < 18 ? t('today.greetingAfternoon') : t('today.greetingEvening');
+  const nowLabel = formatMinutes(clock.getHours() * 60 + clock.getMinutes());
 
   return (
     <View style={[styles.page, { backgroundColor: colors.background }]}>
@@ -579,41 +571,53 @@ export default function TodayScreen() {
         ]}
       >
         <View style={styles.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.date, { color: colors.mutedForeground }]}>
-              {fromDateKey(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          <View style={styles.headerTop}>
+            <Text style={[styles.date, { color: colors.mutedForeground }]} numberOfLines={1}>
+              {formatDate(fromDateKey(selectedDate), { weekday: 'long', month: 'long', day: 'numeric' })}
             </Text>
-            <Text style={[styles.greeting, { color: colors.foreground }]}>
-              {isToday ? greeting : fromDateKey(selectedDate) < clock ? 'Looking back' : 'Planning ahead'}
-            </Text>
+            <View style={styles.headerIcons}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={nudgeCount ? `${t('nudges.open')}. ${t('nudges.badge', { count: nudgeCount })}` : t('nudges.open')}
+                onPress={() => router.push('/nudges')}
+                hitSlop={8}
+                testID="open-nudges"
+                style={({ pressed }) => [styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Feather name="bell" size={17} color={colors.foreground} />
+                {nudgeCount ? <View style={[styles.badgeDot, { backgroundColor: colors.accent, borderColor: colors.card }]} /> : null}
+              </Pressable>
+              {isToday ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={energyFor(selectedDate) ? t('today.energyA11y', { level: energyFor(selectedDate) }) : t('today.energyA11yEmpty')}
+                  onPress={() => setCheckInKey((k) => k + 1)}
+                  hitSlop={8}
+                  testID="open-checkin"
+                  style={({ pressed }) => [styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <MaterialCommunityIcons
+                    name={
+                      energyFor(selectedDate) === 'low' ? 'battery-low'
+                      : energyFor(selectedDate) === 'okay' ? 'battery-50'
+                      : energyFor(selectedDate) === 'high' ? 'battery-high'
+                      : 'battery-unknown'
+                    }
+                    size={18}
+                    color={colors.foreground}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
           </View>
-          {isToday ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={energyFor(selectedDate) ? `Energy ${energyFor(selectedDate)}. Check in again` : 'Check in your energy'}
-              onPress={() => setCheckInKey((k) => k + 1)}
-              hitSlop={6}
-              testID="open-checkin"
-              style={[styles.progressChip, { backgroundColor: colors.secondary, marginRight: 6 }]}
-            >
-              <MaterialCommunityIcons
-                name={
-                  energyFor(selectedDate) === 'low' ? 'battery-low'
-                  : energyFor(selectedDate) === 'okay' ? 'battery-50'
-                  : energyFor(selectedDate) === 'high' ? 'battery-high'
-                  : 'battery-unknown'
-                }
-                size={16}
-                color={colors.secondaryForeground}
-              />
-            </Pressable>
-          ) : null}
-          <View style={[styles.progressChip, { backgroundColor: colors.secondary }]}>
-            <Feather name="check-circle" size={14} color={colors.secondaryForeground} />
-            <Text maxFontSizeMultiplier={1.3} style={[styles.progressChipText, { color: colors.secondaryForeground }]}>
-              {completed}/{sorted.length}
-            </Text>
-          </View>
+          <Text
+            style={[styles.greeting, { color: colors.foreground }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
+            {isToday ? greeting : fromDateKey(selectedDate) < clock ? t('today.lookingBack') : t('today.planningAhead')}
+          </Text>
         </View>
 
         <WeekStrip today={clock} selected={selectedDate} onSelect={setSelectedDate} busy={busy} />
@@ -632,7 +636,7 @@ export default function TodayScreen() {
           <View style={styles.helpers}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Stuck? Dayflow picks one task for you"
+              accessibilityLabel={t('today.stuckA11y')}
               onPress={() => router.push({ pathname: '/one-thing', params: { pick: '1' } })}
               testID="pick-for-me"
               style={({ pressed }) => [styles.helper, { backgroundColor: colors.lilac, opacity: pressed ? 0.85 : 1 }]}
@@ -641,13 +645,13 @@ export default function TodayScreen() {
                 <MaterialCommunityIcons name="dice-5" size={20} color={colors.lilacInk} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.helperTitle, { color: colors.foreground }]} numberOfLines={1}>Stuck?</Text>
-                <Text style={[styles.helperSub, { color: colors.mutedForeground }]} numberOfLines={2}>I’ll pick one for you</Text>
+                <Text style={[styles.helperTitle, { color: colors.foreground }]} numberOfLines={1}>{t('today.stuck')}</Text>
+                <Text style={[styles.helperSub, { color: colors.mutedForeground }]} numberOfLines={2}>{t('today.stuckSub')}</Text>
               </View>
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Too much? Hide everything and see only one thing"
+              accessibilityLabel={t('today.tooMuchA11y')}
               onPress={() => router.push('/one-thing')}
               testID="one-thing-mode"
               style={({ pressed }) => [styles.helper, { backgroundColor: colors.sky, opacity: pressed ? 0.85 : 1 }]}
@@ -656,8 +660,8 @@ export default function TodayScreen() {
                 <MaterialCommunityIcons name="eye-outline" size={20} color={colors.skyInk} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.helperTitle, { color: colors.foreground }]} numberOfLines={1}>Too much?</Text>
-                <Text style={[styles.helperSub, { color: colors.mutedForeground }]} numberOfLines={2}>See only one thing</Text>
+                <Text style={[styles.helperTitle, { color: colors.foreground }]} numberOfLines={1}>{t('today.tooMuch')}</Text>
+                <Text style={[styles.helperSub, { color: colors.mutedForeground }]} numberOfLines={2}>{t('today.tooMuchSub')}</Text>
               </View>
             </Pressable>
           </View>
@@ -678,9 +682,19 @@ export default function TodayScreen() {
           </View>
         ) : null}
 
-        <View style={styles.sectionRow}>
-          <Text style={[styles.section, { color: colors.foreground }]}>Your day</Text>
-          <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>Tap to focus · hold to edit</Text>
+        <View style={styles.sectionBlock}>
+          <View style={styles.sectionRow}>
+            <Text style={[styles.section, { color: colors.foreground }]}>{t('today.yourDay')}</Text>
+            {sorted.length ? (
+              <View style={[styles.progressChip, { backgroundColor: colors.secondary }]} accessibilityLabel={`${completed}/${sorted.length}`}>
+                <Feather name="check-circle" size={13} color={colors.secondaryForeground} />
+                <Text maxFontSizeMultiplier={1.3} style={[styles.progressChipText, { color: colors.secondaryForeground }]}>
+                  {completed}/{sorted.length}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>{t('today.tapHint')}</Text>
         </View>
 
         <View>
@@ -712,8 +726,8 @@ export default function TodayScreen() {
           {!items.length ? (
             <View style={[styles.empty, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <CloudBuddy mood="hello" size={110} />
-              <Text style={[styles.section, { color: colors.foreground }]}>Nothing planned yet</Text>
-              <Text style={{ color: colors.mutedForeground }}>Add one small thing with +. That’s enough to start.</Text>
+              <Text style={[styles.section, { color: colors.foreground }]}>{t('today.emptyTitle')}</Text>
+              <Text style={{ color: colors.mutedForeground }}>{t('today.emptyBody')}</Text>
             </View>
           ) : null}
         </View>
@@ -722,18 +736,16 @@ export default function TodayScreen() {
       <BuddyDialog
         visible={showWelcome}
         mood={awayDays >= 2 ? 'hello' : 'okay'}
-        title={awayDays >= 2 ? 'Welcome back!' : 'Fresh start'}
+        title={awayDays >= 2 ? t('today.welcomeBack') : t('today.freshStart')}
         message={
-          (awayDays >= 2 ? `It’s been ${awayDays + 1} days — I’m glad you’re here. ` : '') +
-          (rolledOverCount
-            ? `${rolledOverCount} unfinished ${rolledOverCount === 1 ? 'thing came' : 'things came'} along to today. No pressure.`
-            : 'Let’s start small — one thing is plenty today.')
+          (awayDays >= 2 ? t('today.welcomeAway', { count: awayDays + 1 }) : '') +
+          (rolledOverCount ? t('today.welcomeMoved', { count: rolledOverCount }) : t('today.welcomeStartSmall'))
         }
         onClose={closeWelcome}
       >
         {rolledOverCount ? (
           <DialogButton
-            label="Move them to Inbox"
+            label={t('today.welcomeToInbox')}
             variant="secondary"
             testID="welcome-to-inbox"
             icon={<Feather name="inbox" size={16} color={colors.foreground} />}
@@ -743,7 +755,7 @@ export default function TodayScreen() {
             }}
           />
         ) : null}
-        <DialogButton label={rolledOverCount ? 'Keep them on today' : 'Let’s go'} testID="welcome-keep" onPress={closeWelcome} />
+        <DialogButton label={rolledOverCount ? t('today.welcomeKeep') : t('common.letsGo')} testID="welcome-keep" onPress={closeWelcome} />
       </BuddyDialog>
 
       {showWeekly && reviewWeek ? <WeeklyReview monday={reviewWeek} onClose={() => setWeeklyClosed(true)} /> : null}
@@ -754,7 +766,7 @@ export default function TodayScreen() {
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Add an activity"
+        accessibilityLabel={t('today.addA11y')}
         onPress={() => router.push('/add-task')}
         testID="add-task"
         style={({ pressed }) => [
@@ -775,10 +787,14 @@ export default function TodayScreen() {
 const styles = StyleSheet.create({
   page: { flex: 1 },
   content: { width: '100%', maxWidth: 600, alignSelf: 'center', paddingHorizontal: 20, gap: 20 },
-  header: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
-  date: { fontSize: 13, fontWeight: '600' },
-  greeting: { fontSize: 30, lineHeight: 36, fontWeight: '800', letterSpacing: -0.8, marginTop: 2 },
-  progressChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999 },
+  header: { gap: 2 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  headerIcons: { flexDirection: 'row', gap: 8 },
+  iconBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  sectionBlock: { gap: 2 },
+  date: { flex: 1, fontSize: 14, fontWeight: '600' },
+  greeting: { fontSize: 32, lineHeight: 38, fontWeight: '800', letterSpacing: -0.8 },
+  progressChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
   progressChipText: { fontSize: 13, fontWeight: '700' },
   week: { flexDirection: 'row', justifyContent: 'space-between' },
   weekDay: { width: 44, paddingVertical: 9, borderRadius: 16, alignItems: 'center', gap: 4 },
@@ -793,7 +809,7 @@ const styles = StyleSheet.create({
   nowTitle: { fontSize: 18, lineHeight: 23, fontWeight: '700', letterSpacing: -0.3 },
   nowMeta: { fontSize: 13, fontWeight: '500' },
   nowPlay: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-  sectionRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   section: { fontSize: 20, fontWeight: '800', letterSpacing: -0.4 },
   sectionHint: { fontSize: 12, fontWeight: '500' },
   row: { flexDirection: 'row', gap: 10, marginBottom: 10 },
@@ -859,6 +875,7 @@ const styles = StyleSheet.create({
   dayLeftTrack: { height: 6, borderRadius: 3, overflow: 'visible', justifyContent: 'center' },
   dayLeftFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3 },
   dayLeftMoon: { position: 'absolute', right: -14 },
+  badgeDot: { position: 'absolute', top: 7, right: 8, width: 10, height: 10, borderRadius: 5, borderWidth: 2 },
   helpers: { flexDirection: 'row', gap: 10, marginTop: -6 },
   helper: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 20 },
   helperIcon: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
