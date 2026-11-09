@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AppState, Platform } from 'react-native';
-import * as Calendar from 'expo-calendar';
+import * as Calendar from 'expo-calendar/legacy';
 import { fromDateKey } from '@/context/DayflowContext';
 
 /**
@@ -21,8 +21,12 @@ const supported = Platform.OS !== 'web';
 
 export async function requestCalendarPermission(): Promise<boolean> {
   if (!supported) return false;
-  const { granted } = await Calendar.requestCalendarPermissionsAsync();
-  return granted;
+  try {
+    const { granted } = await Calendar.requestCalendarPermissionsAsync();
+    return granted;
+  } catch {
+    return false;
+  }
 }
 
 async function fetchEvents(date: string): Promise<CalendarEvent[]> {

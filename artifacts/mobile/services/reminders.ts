@@ -18,10 +18,14 @@ if (supported) {
 
 export async function requestReminderPermission(): Promise<boolean> {
   if (!supported) return false;
-  const current = await Notifications.getPermissionsAsync();
-  if (current.granted) return true;
-  const next = await Notifications.requestPermissionsAsync();
-  return next.granted;
+  try {
+    const current = await Notifications.getPermissionsAsync();
+    if (current.granted) return true;
+    const next = await Notifications.requestPermissionsAsync();
+    return next.granted;
+  } catch {
+    return false;
+  }
 }
 
 function at(task: DayTask, offsetMin: number) {
