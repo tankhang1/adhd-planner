@@ -61,16 +61,18 @@ export async function syncWidgets(tasks: DayTask[], liveActivityEnabled: boolean
   await updateAndroid();
 
   if (Platform.OS === 'ios') {
-    const { current, next } = currentAndNext(payload);
-    if (liveActivityEnabled && current) {
+    const { current, next, overrun } = currentAndNext(payload);
+    // A running block wins; otherwise keep showing one that just ran over.
+    const shown = current ?? overrun;
+    if (liveActivityEnabled && shown) {
       await LiveActivity.start({
-        taskId: current.id,
-        title: current.title,
-        start: current.start,
-        end: current.end,
-        icon: current.icon,
-        tone: current.tone,
-        ink: current.ink,
+        taskId: shown.id,
+        title: shown.title,
+        start: shown.start,
+        end: shown.end,
+        icon: shown.icon,
+        tone: shown.tone,
+        ink: shown.ink,
         nextTitle: next?.title ?? null,
       }).catch(() => null);
     } else {

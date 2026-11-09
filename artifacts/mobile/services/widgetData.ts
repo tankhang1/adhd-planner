@@ -99,5 +99,8 @@ export function currentAndNext(payload: WidgetPayload, nowSec = Date.now() / 100
   const open = payload.tasks.filter((t) => !t.done);
   const current = open.find((t) => t.start <= nowSec && t.end > nowSec) ?? null;
   const next = open.find((t) => t.start > nowSec) ?? null;
-  return { current, next };
+  // Ran over (ended < 30 min ago, not ticked off) — keep it visible so the nudge can escalate.
+  const overrun =
+    [...open].reverse().find((t) => t.end <= nowSec && nowSec - t.end < 30 * 60) ?? null;
+  return { current, next, overrun };
 }

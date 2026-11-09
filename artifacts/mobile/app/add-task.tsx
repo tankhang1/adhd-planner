@@ -4,7 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { REPEAT_PRESETS, TASK_TONES, formatMinutes, fromDateKey, insightFor, isEssential, todayKey, useDayflow } from '@/context/DayflowContext';
+import { REPEAT_PRESETS, TASK_TONES, formatMinutes, fromDateKey, insightFor, isEssential, leaveTimes, todayKey, useDayflow } from '@/context/DayflowContext';
 import type { EditScope } from '@/context/DayflowContext';
 import type { TaskIcon, TaskTone } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
@@ -43,6 +43,9 @@ export default function AddTaskScreen() {
   const insight = insightFor(timeLog, title);
   const [essentialFlag, setEssentialFlag] = useState<boolean>(!!existing?.essential);
   const autoEssential = isEssential({ icon, essential: false });
+  const [travel, setTravel] = useState<number>(existing?.travel ?? 0);
+  const [prep, setPrep] = useState<number>(existing?.prep ?? 10);
+  const trip = leaveTimes({ start, travel, prep });
 
   const shift = (delta: number) => setStart((s) => Math.max(0, Math.min(s + delta, 23 * 60 + 45)));
 
@@ -64,7 +67,7 @@ export default function AddTaskScreen() {
 
   const save = () => {
     if (!canSave) return;
-    const fields = { title, start, duration, tone, icon, essential: essentialFlag };
+    const fields = { title, start, duration, tone, icon, essential: essentialFlag, travel, prep: travel ? prep : 0 };
     if (!existing) {
       addDayTask({ ...fields, date, repeatDays });
       return finish();
@@ -230,6 +233,66 @@ export default function AddTaskScreen() {
           </View>
         ) : null}
 
+        <View style={[styles.tripBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.tripHead}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.insightText, { color: colors.foreground }]}>I need to go somewhere</Text>
+              <Text style={[styles.insightSub, { color: colors.mutedForeground }]}>
+                {trip
+                  ? `Get ready at ${formatMinutes(trip.getReady)} · leave at ${formatMinutes(trip.leave)}`
+                  : 'We’ll tell you when to get ready and when to leave.'}
+              </Text>
+            </View>
+            <Switch
+              value={travel > 0}
+              onValueChange={(on) => setTravel(on ? 20 : 0)}
+              trackColor={{ true: colors.primary, false: colors.input }}
+              accessibilityLabel="I need to go somewhere"
+              testID="toggle-trip"
+            />
+          </View>
+          {travel > 0 ? (
+            <>
+              <Text style={[styles.tripLabel, { color: colors.mutedForeground }]}>Travel time</Text>
+              <View style={styles.wrap}>
+                {[10, 20, 30, 45, 60].map((m) => {
+                  const sel = m === travel;
+                  return (
+                    <Pressable
+                      key={m}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: sel }}
+                      onPress={() => setTravel(m)}
+                      testID={`travel-${m}`}
+                      style={[styles.chip, { backgroundColor: sel ? colors.primary : colors.muted, borderColor: sel ? colors.primary : colors.muted }]}
+                    >
+                      <Text style={[styles.chipText, { color: sel ? colors.primaryForeground : colors.foreground }]}>{m < 60 ? `${m}m` : '1h'}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={[styles.tripLabel, { color: colors.mutedForeground }]}>Time to get ready</Text>
+              <View style={styles.wrap}>
+                {[5, 10, 15, 30].map((m) => {
+                  const sel = m === prep;
+                  return (
+                    <Pressable
+                      key={m}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: sel }}
+                      onPress={() => setPrep(m)}
+                      testID={`prep-${m}`}
+                      style={[styles.chip, { backgroundColor: sel ? colors.primary : colors.muted, borderColor: sel ? colors.primary : colors.muted }]}
+                    >
+                      <Text style={[styles.chipText, { color: sel ? colors.primaryForeground : colors.foreground }]}>{m}m</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
+        </View>
+
         <View style={[styles.essentialRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.insightText, { color: colors.foreground }]}>Essential</Text>
@@ -304,6 +367,9 @@ const styles = StyleSheet.create({
   insightText: { fontSize: 14, fontWeight: '700' },
   insightSub: { fontSize: 12, marginTop: 2 },
   insightBtn: { paddingHorizontal: 12, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  tripBox: { padding: 14, borderRadius: 18, borderWidth: 1, marginTop: 10, gap: 10 },
+  tripHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  tripLabel: { fontSize: 12, fontWeight: '700' },
   essentialRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18, borderWidth: 1, marginTop: 10 },
   weekRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
   dayDot: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },

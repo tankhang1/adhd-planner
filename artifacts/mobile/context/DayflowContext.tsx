@@ -54,6 +54,10 @@ export interface DayTask {
   essential?: boolean;
   /** Parked because of a survival day; restorable */
   parked?: boolean;
+  /** Minutes to travel there (0/undefined = no trip) */
+  travel?: number;
+  /** Minutes to get ready before leaving */
+  prep?: number;
   /** Set when this task is an instance of a repeating series */
   seriesId?: string;
 }
@@ -77,6 +81,8 @@ export interface RecurringTask {
 export type TaskDraft = Pick<DayTask, 'title' | 'start' | 'duration' | 'tone' | 'icon'> & {
   date?: string;
   essential?: boolean;
+  travel?: number;
+  prep?: number;
   label?: string;
   /** Weekdays to repeat on (0 = Sunday). Empty/undefined = one-off. */
   repeatDays?: number[];
@@ -284,6 +290,7 @@ function normalizeDayTasks(tasks: unknown, fallbackDate: string): DayTask[] {
       rolledOver: !!t.rolledOver,
       essential: !!t.essential,
       parked: !!t.parked,
+      ...(Number.isFinite(t.travel) && (t.travel as number) > 0 ? { travel: t.travel, prep: Number.isFinite(t.prep) ? t.prep : 10 } : {}),
       ...(typeof t.seriesId === 'string' ? { seriesId: t.seriesId } : {}),
     };
   });
@@ -330,6 +337,13 @@ function rollOver(tasks: DayTask[], today: string): [DayTask[], number] {
       return t;
     });
   return [next, moved];
+}
+
+/** Minute of the day to leave the house, and to start getting ready. */
+export function leaveTimes(t: Pick<DayTask, 'start' | 'travel' | 'prep'>) {
+  if (!t.travel) return null;
+  const leave = t.start - t.travel;
+  return { leave, getReady: leave - (t.prep ?? 0) };
 }
 
 export function isEssential(t: Pick<DayTask, 'essential' | 'icon'>) {

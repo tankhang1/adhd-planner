@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Svg, { Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDayflow, useVisualMode, formatMinutes, toDateKey, fromDateKey, todayKey } from '@/context/DayflowContext';
+import { useDayflow, useVisualMode, formatMinutes, toDateKey, fromDateKey, todayKey, leaveTimes } from '@/context/DayflowContext';
 import { useCalendarEvents } from '@/services/calendar';
 import { EnergyCheckIn } from '@/components/EnergyCheckIn';
 import { BuddyDialog, DialogButton } from '@/components/BuddyDialog';
@@ -77,6 +77,46 @@ function WeekStrip({ today, selected, onSelect, busy }: { today: Date; selected:
   );
 }
 
+/* --------------------------- Day left bar ------------------------------- */
+
+/** "About 4h left before bed" — makes the rest of the day something you can see. */
+function DayLeft({ now }: { now: number }) {
+  const colors = useColors();
+  const { profile } = useDayflow();
+  const wake = profile?.wake ?? 7 * 60 + 30;
+  const sleep = profile?.sleep ?? 23 * 60;
+  const end = sleep > wake ? sleep : sleep + 24 * 60; // bedtime after midnight
+  const t = now < wake && end > 24 * 60 ? now + 24 * 60 : now;
+  if (t < wake) return null;
+
+  const left = Math.max(0, Math.round(end - t));
+  const progress = Math.min(1, (t - wake) / (end - wake));
+  const label =
+    left === 0
+      ? 'Past bedtime — time to rest'
+      : left < 60
+        ? `${left} min until bedtime`
+        : `About ${Math.floor(left / 60)}h${left % 60 >= 15 ? ` ${Math.round((left % 60) / 15) * 15}m` : ''} left before bed`;
+
+  return (
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel={label}
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
+      style={styles.dayLeft}
+    >
+      <View style={styles.dayLeftRow}>
+        <Feather name={left === 0 ? 'moon' : 'sun'} size={13} color={colors.mutedForeground} />
+        <Text maxFontSizeMultiplier={1.3} style={[styles.dayLeftText, { color: colors.mutedForeground }]}>{label}</Text>
+      </View>
+      <View style={[styles.dayLeftTrack, { backgroundColor: colors.muted }]}>
+        <View style={[styles.dayLeftFill, { width: `${Math.max(2, progress * 100)}%`, backgroundColor: colors.accent }]} />
+        <Feather name="moon" size={10} color={colors.mutedForeground} style={styles.dayLeftMoon} />
+      </View>
+    </View>
+  );
+}
+
 /* ------------------------------ Now card -------------------------------- */
 
 function Ring({ progress, color, track, size = 64 }: { progress: number; color: string; track: string; size?: number }) {
@@ -127,6 +167,9 @@ function NowCard({ tasks, now }: { tasks: DayTask[]; now: number }) {
 
   const ink = inkFor(colors, task.tone);
   const isNow = !!current;
+  const trip = !isNow ? leaveTimes(task) : null;
+  const getReady = !!trip && now >= trip.getReady && now < task.start;
+  const leaveIn = trip ? Math.ceil(trip.leave - now) : 0;
   const remaining = isNow ? Math.ceil(task.start + task.duration - now) : Math.ceil(task.start - now);
   const progress = isNow ? (now - task.start) / task.duration : 0;
   const remainingLabel =
@@ -152,12 +195,16 @@ function NowCard({ tasks, now }: { tasks: DayTask[]; now: number }) {
         </View>
       </View>
       <View style={{ flex: 1, gap: 3 }}>
-        <Text style={[styles.nowEyebrow, { color: ink }]}>{isNow ? 'RIGHT NOW' : 'UP NEXT'}</Text>
+        <Text style={[styles.nowEyebrow, { color: ink }]}>{isNow ? 'RIGHT NOW' : getReady ? 'GET READY' : 'UP NEXT'}</Text>
         <Text style={[styles.nowTitle, { color: colors.foreground }]} numberOfLines={2}>
           {task.title}
         </Text>
         <Text style={[styles.nowMeta, { color: colors.mutedForeground }]}>
-          {isNow ? `${remainingLabel} left` : `Starts in ${remainingLabel}`}
+          {isNow
+            ? `${remainingLabel} left`
+            : getReady
+              ? leaveIn > 0 ? `Leave in ${leaveIn} min` : 'Time to leave!'
+              : trip ? `Leave at ${formatMinutes(trip.leave)}` : `Starts in ${remainingLabel}`}
         </Text>
       </View>
       <View style={[styles.nowPlay, { backgroundColor: ink }]}>
@@ -220,6 +267,11 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
           </Text>
           {task.rolledOver ? (
             <Text style={[styles.blockMeta, { color: ink, fontWeight: '700' }]}>Carried over from yesterday</Text>
+          ) : null}
+          {task.travel && !task.done && !active ? (
+            <Text style={[styles.blockMeta, { color: ink, fontWeight: '700' }]}>
+              <Feather name="navigation" size={11} color={ink} /> Leave by {formatMinutes(task.start - task.travel)}
+            </Text>
           ) : null}
           {active ? (
             <Text style={[styles.blockMeta, { color: ink, fontWeight: '700' }]}>
@@ -475,6 +527,13 @@ export default function TodayScreen() {
         .sort((a, b) => b.start + b.duration - (a.start + a.duration))[0]
     : undefined;
   const overrun = overrunCandidate;
+  // Tier 1 nudge: a single soft haptic the moment a block runs over (while the app is open).
+  const nudgedRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (!overrun || nudgedRef.current === overrun.id) return;
+    nudgedRef.current = overrun.id;
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+  }, [overrun?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const showWelcome = isToday && !welcomeClosed && (awayDays >= 2 || rolledOverCount > 0);
   const closeWelcome = () => {
     setWelcomeClosed(true);
@@ -550,6 +609,8 @@ export default function TodayScreen() {
         </View>
 
         <WeekStrip today={clock} selected={selectedDate} onSelect={setSelectedDate} busy={busy} />
+
+        {isToday ? <DayLeft now={now} /> : null}
 
         {isToday && isSurvivalDay(selectedDate) ? (
           <SurvivalBanner date={selectedDate} parkedCount={dayTasks.filter((t) => t.date === selectedDate && t.parked).length} />
@@ -779,6 +840,12 @@ const styles = StyleSheet.create({
   welcomeActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   welcomeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, minHeight: 44, borderRadius: 22 },
   welcomeBtnText: { fontSize: 14, fontWeight: '700' },
+  dayLeft: { gap: 6, marginTop: -6 },
+  dayLeftRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dayLeftText: { fontSize: 12, fontWeight: '600' },
+  dayLeftTrack: { height: 6, borderRadius: 3, overflow: 'visible', justifyContent: 'center' },
+  dayLeftFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3 },
+  dayLeftMoon: { position: 'absolute', right: -14 },
   helpers: { flexDirection: 'row', gap: 10, marginTop: -6 },
   helper: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 20 },
   helperIcon: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },

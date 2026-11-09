@@ -23,11 +23,16 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+const minutesNow = () => {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+};
+
 /** Onboarding gate + reminder scheduling. */
 function AppEffects() {
   const {
     hydrated, onboarded, dayTasks, remindersEnabled, liveActivityEnabled,
-    reminderLead, quietStart, quietEnd,
+    reminderLead, quietStart, quietEnd, extendTask, toggleDayTask,
   } = useDayflow();
   const segments = useSegments();
 
@@ -57,8 +62,25 @@ function AppEffects() {
     };
   }, [hydrated, dayTasks, liveActivityEnabled]);
 
+  // Notification taps and buttons ("+10 min", "Done").
+  const actionsRef = React.useRef({ extendTask, toggleDayTask, dayTasks });
+  actionsRef.current = { extendTask, toggleDayTask, dayTasks };
   useEffect(
-    () => addReminderTapListener((taskId) => router.push({ pathname: '/focus', params: { taskId } })),
+    () =>
+      addReminderTapListener((taskId, action) => {
+        const { extendTask: extend, toggleDayTask: toggle, dayTasks: tasks } = actionsRef.current;
+        const task = tasks.find((t) => t.id === taskId);
+        if (action === 'extend' && task) {
+          const over = Math.max(0, Math.round(minutesNow() - (task.start + task.duration)));
+          extend(taskId, over + 10, true);
+          return;
+        }
+        if (action === 'done' && task) {
+          if (!task.done) toggle(taskId);
+          return;
+        }
+        router.push({ pathname: '/focus', params: { taskId } });
+      }),
     [],
   );
 
