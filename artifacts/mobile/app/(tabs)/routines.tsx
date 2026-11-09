@@ -1,9 +1,9 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { BodyText, Eyebrow, Page, PageTitle, ProgressBar } from '@/components/DayflowUI';
+import { BodyText, Eyebrow, Page, PageTitle, ProgressBar, SectionHeading } from '@/components/DayflowUI';
 import { useDayflow } from '@/context/DayflowContext';
 import type { Routine } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
@@ -79,6 +79,82 @@ function RoutineCard({ routine }: { routine: Routine }) {
   );
 }
 
+const TREAT_MINUTES = [3, 5, 10, 15];
+
+/** The "dopamine menu": small, enjoyable things that recharge you. */
+function JoyList() {
+  const colors = useColors();
+  const { treats, addTreat, removeTreat } = useDayflow();
+  const [draft, setDraft] = useState('');
+  const [minutes, setMinutes] = useState(5);
+
+  const add = () => {
+    if (!draft.trim()) return;
+    addTreat(draft, minutes, 'emoticon-happy');
+    setDraft('');
+    void Haptics.selectionAsync();
+  };
+
+  return (
+    <View style={styles.joy}>
+      <SectionHeading
+        title="Your joy list"
+        subtitle="Small things that recharge you. I’ll suggest one after a hard task."
+      />
+      <View style={styles.joyChips}>
+        {treats.map((t) => (
+          <View key={t.id} style={[styles.joyChip, { backgroundColor: colors.lemon }]}>
+            <ActivityIcon name={t.icon} size={16} color={colors.lemonInk} />
+            <Text style={[styles.joyText, { color: colors.foreground }]} numberOfLines={1}>{t.title}</Text>
+            <Text style={[styles.joyMin, { color: colors.mutedForeground }]}>{t.minutes}m</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Remove ${t.title}`}
+              hitSlop={8}
+              onPress={() => removeTreat(t.id)}
+              testID={`treat-remove-${t.id}`}
+            >
+              <Feather name="x" size={14} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+        ))}
+      </View>
+      <View style={[styles.joyAdd, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <TextInput
+          value={draft}
+          onChangeText={setDraft}
+          onSubmitEditing={add}
+          returnKeyType="done"
+          placeholder="Add something you enjoy…"
+          placeholderTextColor={colors.mutedForeground}
+          accessibilityLabel="Add to your joy list"
+          testID="treat-input"
+          style={[styles.joyInput, { color: colors.foreground }]}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Length ${minutes} minutes. Tap to change`}
+          onPress={() => setMinutes((m) => TREAT_MINUTES[(TREAT_MINUTES.indexOf(m) + 1) % TREAT_MINUTES.length])}
+          style={[styles.joyLen, { backgroundColor: colors.muted }]}
+          testID="treat-minutes"
+        >
+          <Text style={[styles.joyMin, { color: colors.foreground }]}>{minutes}m</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add"
+          disabled={!draft.trim()}
+          onPress={add}
+          testID="treat-add"
+          style={[styles.joyBtn, { backgroundColor: colors.primary, opacity: draft.trim() ? 1 : 0.4 }]}
+        >
+          <Feather name="plus" size={18} color={colors.primaryForeground} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 export default function RoutinesScreen() {
   const { routines } = useDayflow();
   const colors = useColors();
@@ -104,6 +180,8 @@ export default function RoutinesScreen() {
         <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 15 }}>New routine</Text>
       </Pressable>
 
+      <JoyList />
+
       <View style={[styles.reassurance, { backgroundColor: colors.secondary }]}>
         <Feather name="heart" size={16} color={colors.primary} />
         <Text style={[styles.reassuranceText, { color: colors.secondaryForeground }]}>
@@ -115,6 +193,15 @@ export default function RoutinesScreen() {
 }
 
 const styles = StyleSheet.create({
+  joy: { gap: 12, marginTop: 6 },
+  joyChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  joyChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 10, height: 36, borderRadius: 18, maxWidth: '100%' },
+  joyText: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
+  joyMin: { fontSize: 12, fontWeight: '700' },
+  joyAdd: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 14, paddingRight: 6, height: 52, borderRadius: 26, borderWidth: 1 },
+  joyInput: { flex: 1, fontSize: 15 },
+  joyLen: { height: 36, paddingHorizontal: 12, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  joyBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   header: { gap: 8 },
   headerCopy: { maxWidth: 350, fontSize: 15, lineHeight: 22 },
   card: { borderRadius: 26, padding: 16, gap: 14 },

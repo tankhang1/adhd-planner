@@ -155,9 +155,21 @@ struct TodayWidgetView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         VStack(alignment: .leading, spacing: 8) {
-          Text("LATER")
-            .font(.system(size: 11, weight: .heavy))
-            .foregroundStyle(brandMuted)
+          HStack {
+            Text("LATER")
+              .font(.system(size: 11, weight: .heavy))
+              .foregroundStyle(brandMuted)
+            Spacer(minLength: 0)
+            // Quick capture straight from the home screen.
+            Link(destination: URL(string: "dayflow://capture")!) {
+              Image(systemName: "plus")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Color.white)
+                .frame(width: 26, height: 26)
+                .background(brandPrimary, in: Circle())
+            }
+            .accessibilityLabel("Quick add to Inbox")
+          }
           ForEach(rest.prefix(3), id: \.id) { t in
             HStack(spacing: 8) {
               TaskIcon(task: t, size: 22)

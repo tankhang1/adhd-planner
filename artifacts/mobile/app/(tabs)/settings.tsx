@@ -255,6 +255,19 @@ export default function SettingsScreen() {
                 : 'Long-press your home or lock screen → Edit → Add widget → Dayflow.'}
             </Text>
           </View>
+        <View style={[styles.toggleRow, { backgroundColor: colors.secondary, borderColor: colors.secondary }]}>
+          <View style={[styles.modeIcon, { backgroundColor: colors.card }]}>
+            <Feather name="zap" size={17} color={colors.primary} />
+          </View>
+          <View style={styles.modeCopy}>
+            <Text style={[styles.modeTitle, { color: colors.foreground }]}>Quick add from anywhere</Text>
+            <Text style={[styles.modeSubtitle, { color: colors.secondaryForeground }]}>
+              {Platform.OS === 'ios'
+                ? 'Tap + on the widget, add “Dayflow quick add” to Control Center, or make a Shortcut that opens dayflow://capture and ask Siri.'
+                : 'Make a home-screen shortcut to dayflow://capture.'}
+            </Text>
+          </View>
+        </View>
         </View>
         <Pressable
           accessibilityRole="button"

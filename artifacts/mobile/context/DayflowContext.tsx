@@ -54,6 +54,8 @@ export interface DayTask {
   essential?: boolean;
   /** Parked because of a survival day; restorable */
   parked?: boolean;
+  /** How many times this task has been carried over to a later day */
+  moved?: number;
   /** Minutes to travel there (0/undefined = no trip) */
   travel?: number;
   /** Minutes to get ready before leaving */
@@ -145,6 +147,21 @@ export type RoutineDraft = Omit<Routine, 'id' | 'steps'> & {
   steps: Array<Pick<RoutineStep, 'title' | 'duration'> & { id?: string }>;
 };
 
+/** A small, enjoyable thing to recharge with ("dopamine menu"). */
+export interface Treat {
+  id: string;
+  title: string;
+  minutes: number;
+  icon: TaskIcon;
+}
+
+export const DEFAULT_TREATS: Treat[] = [
+  { id: 'treat-music', title: 'Play one favourite song', minutes: 5, icon: 'music' },
+  { id: 'treat-walk', title: 'Step outside for fresh air', minutes: 5, icon: 'walk' },
+  { id: 'treat-snack', title: 'Make a nice drink or snack', minutes: 10, icon: 'coffee' },
+  { id: 'treat-stretch', title: 'Stretch it out', minutes: 3, icon: 'yoga' },
+];
+
 export interface Profile {
   wake: number;
   sleep: number;
@@ -181,6 +198,11 @@ interface DayflowState {
   survivalDays: string[];
   /** Last date the morning check-in auto-opened (so it shows once a day) */
   energyPromptDate: string | null;
+  treats: Treat[];
+  /** Dates the app was opened — counted, never shown as a streak */
+  showUpDays: string[];
+  /** Monday (YYYY-MM-DD) of the last week that was reviewed */
+  lastReviewWeek: string | null;
 }
 
 interface DayflowContextValue extends DayflowState {
@@ -208,6 +230,11 @@ interface DayflowContextValue extends DayflowState {
   setEnergy: (date: string, level: EnergyLevel) => void;
   energyHandled: (date: string) => boolean;
   markEnergyPrompted: (date: string) => void;
+  addTreat: (title: string, minutes: number, icon: TaskIcon) => void;
+  removeTreat: (id: string) => void;
+  markWeekReviewed: (monday: string) => void;
+  /** Add several inbox items at once (quick capture imports) */
+  addInboxTasks: (titles: string[]) => void;
   markEnergyHandled: (date: string) => void;
   isSurvivalDay: (date: string) => boolean;
   /** Keep only essentials on `date`; everything else is parked (not deleted). */
@@ -290,6 +317,7 @@ function normalizeDayTasks(tasks: unknown, fallbackDate: string): DayTask[] {
       rolledOver: !!t.rolledOver,
       essential: !!t.essential,
       parked: !!t.parked,
+      ...(Number.isFinite(t.moved) ? { moved: t.moved } : {}),
       ...(Number.isFinite(t.travel) && (t.travel as number) > 0 ? { travel: t.travel, prep: Number.isFinite(t.prep) ? t.prep : 10 } : {}),
       ...(typeof t.seriesId === 'string' ? { seriesId: t.seriesId } : {}),
     };
@@ -332,7 +360,7 @@ function rollOver(tasks: DayTask[], today: string): [DayTask[], number] {
     .map((t) => {
       if (t.date < today && !t.done) {
         moved += 1;
-        return { ...t, date: today, rolledOver: true };
+        return { ...t, date: today, rolledOver: true, moved: (t.moved ?? 0) + 1 };
       }
       return t;
     });
@@ -454,6 +482,9 @@ const initialState: DayflowState = {
   energyLog: [],
   survivalDays: [],
   energyPromptDate: null,
+  treats: DEFAULT_TREATS,
+  showUpDays: [],
+  lastReviewWeek: null,
 };
 
 /* -------------------------------- Provider ------------------------------- */
@@ -480,6 +511,9 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
           if (!Array.isArray(merged.timeLog)) merged.timeLog = [];
           if (!Array.isArray(merged.energyLog)) merged.energyLog = [];
           if (!Array.isArray(merged.survivalDays)) merged.survivalDays = [];
+          if (!Array.isArray(merged.treats)) merged.treats = DEFAULT_TREATS;
+          if (!Array.isArray(merged.showUpDays)) merged.showUpDays = [];
+          if (!merged.showUpDays.includes(today)) merged.showUpDays = [...merged.showUpDays, today].slice(-400);
           const away = merged.lastOpenDate ? Math.max(0, daysBetween(merged.lastOpenDate, today) - 1) : 0;
           return {
             ...merged,
@@ -509,7 +543,13 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
       setSelectedDate(now);
       setState((s) => {
         const [tasks, moved] = rollOver(s.dayTasks, now);
-        return { ...s, dayTasks: materialize(tasks, s.recurring, [now]), rolledOverCount: moved, lastOpenDate: now };
+        return {
+          ...s,
+          dayTasks: materialize(tasks, s.recurring, [now]),
+          rolledOverCount: moved,
+          lastOpenDate: now,
+          showUpDays: s.showUpDays.includes(now) ? s.showUpDays : [...s.showUpDays, now].slice(-400),
+        };
       });
     }, 60_000);
     return () => clearInterval(id);
@@ -683,6 +723,21 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
           energyLog: [...s.energyLog.filter((e) => e.date !== date), { date, level }].slice(-120),
         })),
       markEnergyPrompted: (date) => set((s) => ({ ...s, energyPromptDate: date })),
+      addTreat: (title, minutes, icon) => {
+        const clean = title.trim();
+        if (!clean) return;
+        set((s) => ({ ...s, treats: [...s.treats, { id: uid('treat'), title: clean, minutes, icon }] }));
+      },
+      removeTreat: (id) => set((s) => ({ ...s, treats: s.treats.filter((t) => t.id !== id) })),
+      markWeekReviewed: (monday) => set((s) => ({ ...s, lastReviewWeek: monday })),
+      addInboxTasks: (titles) => {
+        const clean = titles.map((t) => t.trim()).filter(Boolean);
+        if (!clean.length) return;
+        set((s) => ({
+          ...s,
+          inboxTasks: [...clean.map((title) => ({ id: uid('inbox'), title, done: false })), ...s.inboxTasks],
+        }));
+      },
       energyHandled: (date) => !!state.energyLog.find((e) => e.date === date)?.handled,
       markEnergyHandled: (date) =>
         set((s) => ({ ...s, energyLog: s.energyLog.map((e) => (e.date === date ? { ...e, handled: true } : e)) })),
@@ -720,7 +775,7 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
             dayTasks: s.dayTasks.map((t) => {
               if (!moveIds.has(t.id)) return t;
               // Repeating instances get a fresh copy tomorrow anyway — just park today's.
-              return t.seriesId ? { ...t, parked: true } : { ...t, date: tomorrow, rolledOver: true };
+              return t.seriesId ? { ...t, parked: true } : { ...t, date: tomorrow, rolledOver: true, moved: (t.moved ?? 0) + 1 };
             }),
           };
         }),

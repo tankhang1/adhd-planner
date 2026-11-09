@@ -10,6 +10,9 @@ import { useCalendarEvents } from '@/services/calendar';
 import { EnergyCheckIn } from '@/components/EnergyCheckIn';
 import { BuddyDialog, DialogButton } from '@/components/BuddyDialog';
 import { CloudBuddy } from '@/components/CloudBuddy';
+import { Celebration } from '@/components/Celebration';
+import { WeeklyReview } from '@/components/WeeklyReview';
+import { weekToReview } from '@/services/weekly';
 import type { CalendarEvent } from '@/services/calendar';
 import type { DayTask } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
@@ -335,69 +338,66 @@ function CalendarBlock({ event }: { event: CalendarEvent }) {
   );
 }
 
-/** Shown when a block's time is up but it isn't ticked off — the classic hyperfocus moment. */
-function OverrunCard({ task, now }: { task: DayTask; now: number }) {
+/**
+ * Hyperfocus nudge. When a block runs over: a friendly dialog once,
+ * then (if dismissed) just a slim row on Today. Never a big alarm card.
+ */
+function OverrunNudge({ task, now, allowDialog }: { task: DayTask; now: number; allowDialog: boolean }) {
   const colors = useColors();
   const { extendTask, toggleDayTask, shiftRestOfDay } = useDayflow();
-  const ink = inkFor(colors, task.tone);
+  const [dialogFor, setDialogFor] = useState<string | null>(task.id);
+  useEffect(() => setDialogFor(task.id), [task.id]);
   const over = Math.max(1, Math.round(now - (task.start + task.duration)));
+  const ink = inkFor(colors, task.tone);
+
+  const extend = () => {
+    void Haptics.selectionAsync();
+    extendTask(task.id, over + 10, true);
+    setDialogFor(null);
+  };
+  const done = () => {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    toggleDayTask(task.id);
+    setDialogFor(null);
+  };
+
   return (
-    <View style={[styles.overrun, { backgroundColor: colors.card, borderColor: ink }]}>
-      <View style={styles.summaryTop}>
-        <View style={[styles.summaryIcon, { backgroundColor: colors[task.tone] }]}>
-          <ActivityIcon name={task.icon} size={22} color={ink} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.summaryTitle, { color: colors.foreground }]}>Still on “{task.title}”?</Text>
-          <Text style={[styles.summaryMeta, { color: colors.mutedForeground }]}>
-            Time ran over by {over} min. No problem — want to make room?
-          </Text>
-        </View>
-      </View>
-      <View style={styles.welcomeActions}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityHint="Adds 10 minutes to this and moves the rest of today later"
-          onPress={() => {
-            void Haptics.selectionAsync();
-            extendTask(task.id, over + 10, true);
-          }}
-          testID="overrun-extend"
-          style={[styles.welcomeBtn, { backgroundColor: ink }]}
-        >
-          <Feather name="plus" size={15} color="#FFFFFF" />
-          <Text style={[styles.welcomeBtnText, { color: '#FFFFFF' }]}>10 more min</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityHint="Moves every remaining task today 15 minutes later"
-          onPress={() => {
-            void Haptics.selectionAsync();
-            shiftRestOfDay(task.date, task.start + task.duration, 15);
-          }}
+    <>
+      <BuddyDialog
+        visible={allowDialog && dialogFor === task.id}
+        mood="okay"
+        title={`Still on “${task.title}”?`}
+        message={`Time’s up${over > 1 ? ` (${over} min over)` : ''}. No rush — want a little more time?`}
+        onClose={() => setDialogFor(null)}
+      >
+        <DialogButton label="10 more minutes" testID="overrun-extend" onPress={extend} />
+        <DialogButton label="I’m done" variant="secondary" testID="overrun-done" onPress={done} />
+        <DialogButton
+          label="Push the rest of my day 15 min"
+          variant="text"
           testID="overrun-shift"
-          style={[styles.welcomeBtn, { backgroundColor: colors.muted }]}
-        >
-          <Feather name="chevrons-right" size={15} color={colors.foreground} />
-          <Text style={[styles.welcomeBtnText, { color: colors.foreground }]}>Push the rest 15 min</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
           onPress={() => {
-            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            toggleDayTask(task.id);
+            shiftRestOfDay(task.date, task.start + task.duration, 15);
+            setDialogFor(null);
           }}
-          testID="overrun-done"
-          style={[styles.welcomeBtn, { backgroundColor: colors.muted }]}
-        >
+        />
+      </BuddyDialog>
+
+      <View style={[styles.slim, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <ActivityIcon name={task.icon} size={18} color={ink} />
+        <Text style={[styles.slimHint, { color: colors.foreground }]} numberOfLines={1}>
+          {task.title} ran over · {over}m
+        </Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Add 10 minutes" onPress={extend} style={[styles.pill, { backgroundColor: colors.primary }]}>
+          <Text style={[styles.pillText, { color: colors.primaryForeground }]}>+10m</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Mark done" onPress={done} style={[styles.pill, { backgroundColor: colors.muted }]}>
           <Feather name="check" size={15} color={colors.foreground} />
-          <Text style={[styles.welcomeBtnText, { color: colors.foreground }]}>Done</Text>
         </Pressable>
       </View>
-    </View>
+    </>
   );
 }
-
 
 function SurvivalBanner({ date, parkedCount }: { date: string; parkedCount: number }) {
   const colors = useColors();
@@ -535,6 +535,21 @@ export default function TodayScreen() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
   }, [overrun?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const showWelcome = isToday && !welcomeClosed && (awayDays >= 2 || rolledOverCount > 0);
+  const { lastReviewWeek } = useDayflow();
+  const [weeklyClosed, setWeeklyClosed] = useState(false);
+  const reviewWeek = isToday ? weekToReview(clock, lastReviewWeek) : null;
+  const showWeekly = !!reviewWeek && !weeklyClosed && !showWelcome;
+
+  // Small celebration on tick-off. Varied, kind lines; never a streak.
+  const [celebration, setCelebration] = useState<string | null>(null);
+  const celebrate = () => {
+    const doneToday = sorted.filter((t) => t.done).length + 1;
+    const lines = ['Nice one!', 'Done and dusted!', 'One less thing!', 'Look at you go!', 'That counts!'];
+    const msg = doneToday >= 3 && doneToday % 3 === 0 ? `${doneToday} done today!` : lines[Math.floor(Math.random() * lines.length)];
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setCelebration(msg);
+  };
+
   const closeWelcome = () => {
     setWelcomeClosed(true);
     dismissWelcomeBack();
@@ -616,7 +631,7 @@ export default function TodayScreen() {
           <SurvivalBanner date={selectedDate} parkedCount={dayTasks.filter((t) => t.date === selectedDate && t.parked).length} />
         ) : null}
 
-        {overrun ? <OverrunCard task={overrun} now={now} /> : null}
+        {overrun ? <OverrunNudge task={overrun} now={now} allowDialog={!showWelcome && !showWeekly} /> : null}
 
         {isToday ? <NowCard tasks={sorted} now={now} /> : null}
 
@@ -690,6 +705,7 @@ export default function TodayScreen() {
                     now={isToday ? now : fromDateKey(selectedDate) < clock ? 24 * 60 : -1}
                     onToggle={() => {
                       void Haptics.selectionAsync();
+                      if (!it.task.done) celebrate();
                       toggleDayTask(it.task.id);
                     }}
                   />
@@ -737,7 +753,11 @@ export default function TodayScreen() {
         <DialogButton label={rolledOverCount ? 'Keep them on today' : 'Let’s go'} testID="welcome-keep" onPress={closeWelcome} />
       </BuddyDialog>
 
-      <EnergyCheckIn blocked={showWelcome} forceOpen={checkInKey > 0 ? true : undefined} key={`checkin-${checkInKey}`} />
+      {showWeekly && reviewWeek ? <WeeklyReview monday={reviewWeek} onClose={() => setWeeklyClosed(true)} /> : null}
+
+      <EnergyCheckIn blocked={showWelcome || showWeekly} forceOpen={checkInKey > 0 ? true : undefined} key={`checkin-${checkInKey}`} />
+
+      {celebration ? <Celebration message={celebration} onDone={() => setCelebration(null)} /> : null}
 
       <Pressable
         accessibilityRole="button"

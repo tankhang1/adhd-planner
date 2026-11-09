@@ -9,6 +9,8 @@ import { useDayflow } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
 import { CloudBuddy } from '@/components/CloudBuddy';
 import { ActivityIcon } from '@/components/ActivityIcon';
+import { BuddyDialog, DialogButton } from '@/components/BuddyDialog';
+import type { Treat } from '@/context/DayflowContext';
 
 const RING_SIZE = 260;
 const STROKE = 18;
@@ -23,7 +25,8 @@ export default function FocusScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { taskId, tiny } = useLocalSearchParams<{ taskId?: string; tiny?: string }>();
-  const { dayTasks, toggleDayTask, extendTask, logTime } = useDayflow();
+  const { dayTasks, toggleDayTask, extendTask, logTime, treats, addDayTask, nextFreeStart } = useDayflow();
+  const [treat, setTreat] = useState<Treat | null>(null);
   const task = dayTasks.find((t) => t.id === taskId);
   const fullSeconds = (task?.duration ?? 25) * 60;
   const tone = task?.tone ?? 'lilac';
@@ -78,6 +81,28 @@ export default function FocusScreen() {
     if (task && worked >= 60) logTime(task, worked / 60);
     if (task && !task.done) toggleDayTask(task.id);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // After a real stretch of effort, offer something from the dopamine menu.
+    if (task && task.duration >= 20 && treats.length) {
+      setTreat(treats[Math.floor(Math.random() * treats.length)]);
+      return;
+    }
+    router.back();
+  };
+
+  const takeTreat = () => {
+    if (treat && task) {
+      const now = new Date();
+      addDayTask({
+        title: treat.title,
+        start: nextFreeStart(task.date, now.getHours() * 60 + now.getMinutes()),
+        duration: treat.minutes,
+        tone: 'lemon',
+        icon: treat.icon,
+        date: task.date,
+        label: 'Treat',
+      });
+    }
+    setTreat(null);
     router.back();
   };
 
@@ -219,6 +244,28 @@ export default function FocusScreen() {
       </View>
 
       <Text style={[styles.footer, { color: colors.mutedForeground }]}>If you drift, you can always begin again.</Text>
+
+      <BuddyDialog
+        visible={!!treat}
+        mood="happy"
+        title="You earned a little break"
+        message={treat ? `How about this: “${treat.title}” · ${treat.minutes} min` : undefined}
+        onClose={() => {
+          setTreat(null);
+          router.back();
+        }}
+      >
+        <DialogButton label="Yes, add it now" testID="treat-yes" onPress={takeTreat} />
+        <DialogButton
+          label="Not now"
+          variant="text"
+          testID="treat-no"
+          onPress={() => {
+            setTreat(null);
+            router.back();
+          }}
+        />
+      </BuddyDialog>
     </View>
   );
 }

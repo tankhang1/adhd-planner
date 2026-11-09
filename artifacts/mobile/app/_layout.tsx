@@ -103,6 +103,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen name="routine-run" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       <Stack.Screen name="one-thing" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+      <Stack.Screen name="capture" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="routine-edit" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
     </Stack>

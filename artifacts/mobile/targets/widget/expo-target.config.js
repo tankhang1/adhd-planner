@@ -4,7 +4,7 @@ module.exports = (config) => ({
   name: 'DayflowWidget',
   displayName: 'Dayflow',
   deploymentTarget: '17.0',
-  frameworks: ['SwiftUI', 'WidgetKit', 'ActivityKit'],
+  frameworks: ['SwiftUI', 'WidgetKit', 'ActivityKit', 'AppIntents'],
   colors: {
     $accent: '#6C5CE7',
     $widgetBackground: '#FBFAFF',
