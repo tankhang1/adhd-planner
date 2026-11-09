@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { readState, writeState } from '@/lib/storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { formatClock } from '@/i18n/locale';
@@ -464,7 +464,6 @@ export function buildStarterDay(profile: Profile, date: string): DayTask[] {
 
 /* ------------------------------ Initial state ---------------------------- */
 
-export const STORAGE_KEY = 'dayflow-v4';
 
 /** Built lazily so starter content uses the language detected at launch. */
 const makeInitialState = (): DayflowState => ({
@@ -528,52 +527,45 @@ const makeInitialState = (): DayflowState => ({
 
 /* -------------------------------- Provider ------------------------------- */
 
+/**
+ * Build the starting state from what's saved on the device (MMKV reads are
+ * synchronous, so the very first render already has the user's data).
+ */
+function hydrateState(): DayflowState {
+  const current = makeInitialState();
+  const parsed = readState<DayflowState>() ?? {};
+  const today = todayKey();
+  const merged: DayflowState = { ...current, ...parsed, activeRoutineId: null };
+  // Apply the saved language before the first render.
+  applyLanguage(merged.language ?? 'system');
+  Object.assign(merged, relocalizeSeeds(merged)); // e.g. phone language changed since last launch
+  const [tasks, moved] = rollOver(normalizeDayTasks(merged.dayTasks, today), today);
+  const recurring = Array.isArray(merged.recurring) ? merged.recurring : [];
+  if (!Array.isArray(merged.timeLog)) merged.timeLog = [];
+  if (!Array.isArray(merged.energyLog)) merged.energyLog = [];
+  if (!Array.isArray(merged.survivalDays)) merged.survivalDays = [];
+  if (!Array.isArray(merged.treats)) merged.treats = defaultTreats();
+  if (!Array.isArray(merged.showUpDays)) merged.showUpDays = [];
+  if (!merged.showUpDays.includes(today)) merged.showUpDays = [...merged.showUpDays, today].slice(-400);
+  const away = merged.lastOpenDate ? Math.max(0, daysBetween(merged.lastOpenDate, today) - 1) : 0;
+  return {
+    ...merged,
+    recurring,
+    lastOpenDate: today,
+    awayDays: away || merged.awayDays || 0,
+    dayTasks: materialize(tasks, recurring, [today]),
+    routines: normalizeRoutines(merged.routines) ?? current.routines,
+    rolledOverCount: moved || merged.rolledOverCount,
+  };
+}
+
 const DayflowContext = createContext<DayflowContextValue | null>(null);
 
 export function DayflowProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<DayflowState>(makeInitialState);
-  const [hydrated, setHydrated] = useState(false);
+  const [state, setState] = useState<DayflowState>(hydrateState);
+  // Storage is synchronous, so the state is ready from the first render.
+  const hydrated = true;
   const [selectedDate, setSelectedDate] = useState(todayKey);
-
-  // Load + migrate + roll over.
-  useEffect(() => {
-    let active = true;
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((stored) => {
-        if (!active) return;
-        const today = todayKey();
-        const parsed = stored ? (JSON.parse(stored) as Partial<DayflowState>) : {};
-        setState((current) => {
-          const merged: DayflowState = { ...current, ...parsed, activeRoutineId: null };
-          // Apply the saved language before the first hydrated render.
-          applyLanguage(merged.language ?? 'system');
-          Object.assign(merged, relocalizeSeeds(merged)); // e.g. phone language changed since last launch
-          const [tasks, moved] = rollOver(normalizeDayTasks(merged.dayTasks, today), today);
-          const recurring = Array.isArray(merged.recurring) ? merged.recurring : [];
-          if (!Array.isArray(merged.timeLog)) merged.timeLog = [];
-          if (!Array.isArray(merged.energyLog)) merged.energyLog = [];
-          if (!Array.isArray(merged.survivalDays)) merged.survivalDays = [];
-          if (!Array.isArray(merged.treats)) merged.treats = defaultTreats();
-          if (!Array.isArray(merged.showUpDays)) merged.showUpDays = [];
-          if (!merged.showUpDays.includes(today)) merged.showUpDays = [...merged.showUpDays, today].slice(-400);
-          const away = merged.lastOpenDate ? Math.max(0, daysBetween(merged.lastOpenDate, today) - 1) : 0;
-          return {
-            ...merged,
-            recurring,
-            lastOpenDate: today,
-            awayDays: away || merged.awayDays || 0,
-            dayTasks: materialize(tasks, recurring, [today]),
-            routines: normalizeRoutines(merged.routines) ?? current.routines,
-            rolledOverCount: moved || merged.rolledOverCount,
-          };
-        });
-      })
-      .catch(() => {})
-      .finally(() => active && setHydrated(true));
-    return () => {
-      active = false;
-    };
-  }, []);
 
   // Roll over again if the app stays open past midnight.
   useEffect(() => {
@@ -614,7 +606,7 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!hydrated) return;
     const { activeRoutineId: _ignored, ...persisted } = state;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(persisted)).catch(() => {});
+    writeState(persisted);
   }, [hydrated, state]);
 
   const value = useMemo<DayflowContextValue>(() => {

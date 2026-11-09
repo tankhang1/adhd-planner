@@ -1,11 +1,10 @@
 import React from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FlexWidget, TextWidget } from 'react-native-android-widget';
 import type { HexColor, WidgetTaskHandlerProps } from 'react-native-android-widget';
-import { STORAGE_KEY } from '@/context/DayflowContext';
 import type { DayTask } from '@/context/DayflowContext';
 import { buildWidgetPayload, currentAndNext } from '@/services/widgetData';
 import { applyLanguage, formatClock, tr } from '@/i18n';
+import { readWidgetState } from '@/lib/storage';
 import type { LanguageSetting } from '@/i18n';
 import type { WidgetTask } from '@/services/widgetData';
 
@@ -71,8 +70,7 @@ function TodayWidget({ current, next, later }: { current: WidgetTask | null; nex
 export async function renderTodayWidget() {
   let tasks: DayTask[] = [];
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    const saved = raw ? (JSON.parse(raw) as { dayTasks?: DayTask[]; language?: LanguageSetting }) : {};
+    const saved = readWidgetState() as { dayTasks?: DayTask[]; language?: LanguageSetting };
     tasks = saved.dayTasks ?? [];
     // Headless widget task: the app isn't running, so apply the user's language here.
     applyLanguage(saved.language ?? 'system');
