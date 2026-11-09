@@ -1,86 +1,81 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { BodyText, Card, Eyebrow, Page, PageTitle, ProgressBar, PrimaryButton, SectionHeading } from '@/components/DayflowUI';
+import { BodyText, Eyebrow, Page, PageTitle, ProgressBar } from '@/components/DayflowUI';
 import { useDayflow } from '@/context/DayflowContext';
 import type { Routine } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { ActivityIcon } from '@/components/ActivityIcon';
 
 function RoutineCard({ routine }: { routine: Routine }) {
   const colors = useColors();
-  const { activeRoutineId, setActiveRoutineId, toggleRoutineStep } = useDayflow();
-  const completed = routine.steps.filter((step) => step.done).length;
-  const active = activeRoutineId === routine.id;
+  const ink = colors[`${routine.tone}Ink` as const];
+  const completed = routine.steps.filter((s) => s.done).length;
+  const minutes = routine.steps.reduce((sum, s) => sum + s.duration, 0);
 
   return (
-    <Card style={styles.routineCard}>
-      <View style={styles.routineHeading}>
-        <View style={[styles.routineIcon, { backgroundColor: colors[routine.tone] }]}>
-          <Feather
-            name={routine.id === 'morning' ? 'sunrise' : 'moon'}
-            size={18}
-            color={colors.foreground}
-          />
+    <View style={[styles.card, { backgroundColor: colors[routine.tone] }]}>
+      <View style={styles.cardTop}>
+        <View style={[styles.icon, { backgroundColor: colors.card }]}>
+          <ActivityIcon name={routine.icon} size={26} color={ink} />
         </View>
-        <View style={styles.routineCopy}>
-          <Text style={[styles.routineTitle, { color: colors.foreground }]}>{routine.title}</Text>
-          <BodyText>{routine.subtitle} · {routine.steps.reduce((sum, step) => sum + step.duration, 0)} min</BodyText>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[styles.title, { color: colors.foreground }]}>{routine.title}</Text>
+          <BodyText>
+            {routine.steps.length} steps · {minutes} min{routine.subtitle ? ` · ${routine.subtitle}` : ''}
+          </BodyText>
         </View>
-        <Text style={[styles.stepCount, { color: colors.mutedForeground }]}>
-          {completed}/{routine.steps.length}
-        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Edit ${routine.title}`}
+          hitSlop={10}
+          onPress={() => router.push({ pathname: '/routine-edit', params: { id: routine.id } })}
+          testID={`routine-edit-${routine.id}`}
+          style={[styles.edit, { backgroundColor: colors.card }]}
+        >
+          <Feather name="edit-2" size={16} color={colors.mutedForeground} />
+        </Pressable>
       </View>
 
-      <ProgressBar
-        value={routine.steps.length ? completed / routine.steps.length : 0}
-        color={colors.primary}
-      />
-
-      <View style={styles.steps}>
-        {routine.steps.map((step, index) => (
-          <Pressable
-            key={step.id}
-            accessibilityRole="button"
-            accessibilityLabel={`${step.done ? 'Mark incomplete' : 'Mark complete'}: ${step.title}`}
-            accessibilityState={{ selected: step.done }}
-            onPress={() => {
-              void Haptics.selectionAsync();
-              toggleRoutineStep(routine.id, step.id);
-            }}
-            testID={`routine-step-${step.id}`}
-            style={({ pressed }) => [styles.stepRow, { opacity: pressed ? 0.72 : 1 }]}
-          >
-            <View style={[styles.stepNumber, { backgroundColor: step.done ? colors.primary : colors.muted }]}>
-              {step.done ? (
-                <Feather name="check" size={13} color={colors.primaryForeground} />
+      <View style={styles.stepPreview}>
+        {routine.steps.slice(0, 4).map((s, i) => (
+          <View key={s.id} style={styles.previewRow}>
+            <View style={[styles.num, { backgroundColor: s.done ? ink : colors.card }]}>
+              {s.done ? (
+                <Feather name="check" size={12} color="#FFFFFF" />
               ) : (
-                <Text style={[styles.stepNumberText, { color: colors.mutedForeground }]}>{index + 1}</Text>
+                <Text style={[styles.numText, { color: ink }]}>{i + 1}</Text>
               )}
             </View>
-            <Text style={[styles.stepTitle, { color: colors.foreground }, step.done && styles.stepDone]}>
-              {step.title}
+            <Text style={[styles.stepText, { color: colors.foreground }, s.done && styles.stepDone]} numberOfLines={1}>
+              {s.title}
             </Text>
-            <Text style={[styles.stepDuration, { color: colors.mutedForeground }]}>{step.duration}m</Text>
-          </Pressable>
+            <Text style={[styles.stepDur, { color: colors.mutedForeground }]}>{s.duration}m</Text>
+          </View>
         ))}
+        {routine.steps.length > 4 ? (
+          <Text style={[styles.more, { color: colors.mutedForeground }]}>+{routine.steps.length - 4} more</Text>
+        ) : null}
       </View>
 
-      <PrimaryButton
-        title={active ? 'Pause this routine' : 'Start this routine'}
-        icon={active ? 'pause' : 'play'}
+      {completed > 0 ? <ProgressBar value={completed / routine.steps.length} color={ink} /> : null}
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${completed > 0 ? 'Continue' : 'Start'} ${routine.title}`}
         onPress={() => {
           void Haptics.selectionAsync();
-          setActiveRoutineId(active ? null : routine.id);
+          router.push({ pathname: '/routine-run', params: { id: routine.id } });
         }}
         testID={`routine-start-${routine.id}`}
-      />
-      {active ? (
-        <Text style={[styles.activeNote, { color: colors.primary }]}>
-          You’re here now. Take each step at your own pace.
-        </Text>
-      ) : null}
-    </Card>
+        style={({ pressed }) => [styles.start, { backgroundColor: ink, opacity: pressed ? 0.85 : 1 }]}
+      >
+        <Feather name="play" size={17} color="#FFFFFF" />
+        <Text style={styles.startText}>{completed > 0 ? 'Continue' : 'Start step by step'}</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -91,17 +86,28 @@ export default function RoutinesScreen() {
     <Page>
       <View style={styles.header}>
         <Eyebrow>REPEATABLE, NOT RIGID</Eyebrow>
-        <PageTitle>Small steps count.</PageTitle>
+        <PageTitle>Routines</PageTitle>
         <BodyText style={styles.headerCopy}>
-          Familiar rhythms can make the next thing easier. Skip or change any step.
+          One step at a time, with a timer for each. Skip anything — it still counts.
         </BodyText>
       </View>
-      <SectionHeading title="Your routines" subtitle="Pick the one that fits this moment." />
-      {routines.map((routine) => <RoutineCard key={routine.id} routine={routine} />)}
+
+      {routines.map((r) => <RoutineCard key={r.id} routine={r} />)}
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push('/routine-edit')}
+        testID="new-routine"
+        style={({ pressed }) => [styles.newBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+      >
+        <Feather name="plus" size={18} color={colors.primary} />
+        <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 15 }}>New routine</Text>
+      </Pressable>
+
       <View style={[styles.reassurance, { backgroundColor: colors.secondary }]}>
         <Feather name="heart" size={16} color={colors.primary} />
         <Text style={[styles.reassuranceText, { color: colors.secondaryForeground }]}>
-          There are no streaks here. Coming back is enough.
+          No streaks here. Your routines never change unless you change them.
         </Text>
       </View>
     </Page>
@@ -111,20 +117,22 @@ export default function RoutinesScreen() {
 const styles = StyleSheet.create({
   header: { gap: 8 },
   headerCopy: { maxWidth: 350, fontSize: 15, lineHeight: 22 },
-  routineCard: { gap: 17 },
-  routineHeading: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  routineIcon: { width: 42, height: 42, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  routineCopy: { flex: 1, gap: 3 },
-  routineTitle: { fontSize: 16, lineHeight: 21, fontWeight: '700' },
-  stepCount: { fontSize: 12, fontWeight: '600' },
-  steps: { gap: 4 },
-  stepRow: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  stepNumber: { width: 25, height: 25, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  stepNumberText: { fontSize: 11, fontWeight: '700' },
-  stepTitle: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: '500' },
-  stepDone: { textDecorationLine: 'line-through', opacity: 0.58 },
-  stepDuration: { fontSize: 11 },
-  activeNote: { fontSize: 12, textAlign: 'center', fontWeight: '600' },
+  card: { borderRadius: 26, padding: 16, gap: 14 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  icon: { width: 48, height: 48, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 17, fontWeight: '800', letterSpacing: -0.2 },
+  edit: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  stepPreview: { gap: 8 },
+  previewRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  num: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  numText: { fontSize: 11, fontWeight: '800' },
+  stepText: { flex: 1, fontSize: 14, fontWeight: '500' },
+  stepDone: { textDecorationLine: 'line-through', opacity: 0.6 },
+  stepDur: { fontSize: 12, fontWeight: '600' },
+  more: { fontSize: 12, fontWeight: '600', marginLeft: 34 },
+  start: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 50, borderRadius: 25 },
+  startText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  newBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 54, borderRadius: 20, borderWidth: 1.5, borderStyle: 'dashed' },
   reassurance: { minHeight: 52, borderRadius: 17, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 10 },
   reassuranceText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: '500' },
 });

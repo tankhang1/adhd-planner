@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { requestReminderPermission } from '@/services/reminders';
+import { requestCalendarPermission } from '@/services/calendar';
 import { Feather } from '@expo/vector-icons';
 import { BodyText, Card, Eyebrow, Page, PageTitle, SectionHeading } from '@/components/DayflowUI';
 import { useDayflow } from '@/context/DayflowContext';
@@ -54,9 +57,68 @@ function ModeOption({
   );
 }
 
+function ToggleRow({
+  icon, title, subtitle, value, onChange, testID,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  title: string;
+  subtitle: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  testID: string;
+}) {
+  const colors = useColors();
+  return (
+    <View style={[styles.toggleRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[styles.modeIcon, { backgroundColor: value ? colors.primary : colors.muted }]}>
+        <Feather name={icon} size={17} color={value ? colors.primaryForeground : colors.mutedForeground} />
+      </View>
+      <View style={styles.modeCopy}>
+        <Text style={[styles.modeTitle, { color: colors.foreground }]}>{title}</Text>
+        <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ true: colors.primary, false: colors.input }}
+        accessibilityLabel={title}
+        testID={testID}
+      />
+    </View>
+  );
+}
+
+const notOnWeb = (what: string) => {
+  if (Platform.OS === 'web') {
+    Alert.alert(`${what} works on the phone app`, 'Open Dayflow on iOS or Android to turn this on.');
+    return true;
+  }
+  return false;
+};
+
 export default function SettingsScreen() {
   const colors = useColors();
-  const { visualMode, setVisualMode } = useDayflow();
+  const {
+    visualMode, setVisualMode, remindersEnabled, setRemindersEnabled,
+    calendarSyncEnabled, setCalendarSyncEnabled, resetOnboarding,
+    liveActivityEnabled, setLiveActivityEnabled,
+  } = useDayflow();
+
+  const toggleReminders = async (on: boolean) => {
+    if (!on) return setRemindersEnabled(false);
+    if (notOnWeb('Reminders')) return;
+    const ok = await requestReminderPermission();
+    if (!ok) Alert.alert('Notifications are off', 'Allow notifications for Dayflow in your phone settings.');
+    setRemindersEnabled(ok);
+  };
+
+  const toggleCalendar = async (on: boolean) => {
+    if (!on) return setCalendarSyncEnabled(false);
+    if (notOnWeb('Calendar sync')) return;
+    const ok = await requestCalendarPermission();
+    if (!ok) Alert.alert('Calendar access is off', 'Allow calendar access for Dayflow in your phone settings.');
+    setCalendarSyncEnabled(ok);
+  };
   const [showPlans, setShowPlans] = useState(false);
 
   return (
@@ -87,6 +149,67 @@ export default function SettingsScreen() {
           selected={visualMode === 'focused'}
           onPress={() => setVisualMode('focused')}
         />
+      </View>
+
+      <View style={styles.section}>
+        <SectionHeading title="Help outside the app" subtitle="Gentle nudges, never nagging." />
+        <ToggleRow
+          icon="bell"
+          title="Transition reminders"
+          subtitle="A heads-up 5 minutes before, and when it’s time"
+          value={remindersEnabled}
+          onChange={(v) => void toggleReminders(v)}
+          testID="toggle-reminders"
+        />
+        <ToggleRow
+          icon="calendar"
+          title="Show my calendar"
+          subtitle="Events from Apple, Google or Outlook calendars on this phone"
+          value={calendarSyncEnabled}
+          onChange={(v) => void toggleCalendar(v)}
+          testID="toggle-calendar"
+        />
+        {Platform.OS === 'ios' ? (
+          <ToggleRow
+            icon="smartphone"
+            title="Live Activity"
+            subtitle="Countdown on the lock screen & Dynamic Island while a block is running"
+            value={liveActivityEnabled}
+            onChange={setLiveActivityEnabled}
+            testID="toggle-live-activity"
+          />
+        ) : null}
+        <View style={[styles.toggleRow, { backgroundColor: colors.secondary, borderColor: colors.secondary }]}>
+          <View style={[styles.modeIcon, { backgroundColor: colors.card }]}>
+            <Feather name="grid" size={17} color={colors.primary} />
+          </View>
+          <View style={styles.modeCopy}>
+            <Text style={[styles.modeTitle, { color: colors.foreground }]}>Add the home-screen widget</Text>
+            <Text style={[styles.modeSubtitle, { color: colors.secondaryForeground }]}>
+              {Platform.OS === 'android'
+                ? 'Long-press your home screen → Widgets → Dayflow.'
+                : 'Long-press your home or lock screen → Edit → Add widget → Dayflow.'}
+            </Text>
+          </View>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            resetOnboarding();
+            router.replace('/onboarding');
+          }}
+          testID="redo-onboarding"
+          style={({ pressed }) => [styles.toggleRow, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
+        >
+          <View style={[styles.modeIcon, { backgroundColor: colors.muted }]}>
+            <Feather name="refresh-cw" size={17} color={colors.mutedForeground} />
+          </View>
+          <View style={styles.modeCopy}>
+            <Text style={[styles.modeTitle, { color: colors.foreground }]}>Rebuild today from scratch</Text>
+            <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>Answer the 3 setup questions again</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+        </Pressable>
       </View>
 
       <Card style={styles.promiseCard}>
@@ -155,6 +278,7 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 20, borderWidth: 1 },
   header: { gap: 8 },
   headerCopy: { maxWidth: 340, fontSize: 15, lineHeight: 22 },
   section: { gap: 11 },

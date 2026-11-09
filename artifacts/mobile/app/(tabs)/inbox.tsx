@@ -10,13 +10,27 @@ import {
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { BodyText, Card, Eyebrow, Page, PageTitle, SectionHeading } from '@/components/DayflowUI';
-import { useDayflow } from '@/context/DayflowContext';
+import { formatMinutes, toDateKey, useDayflow } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
 
 export default function InboxScreen() {
   const colors = useColors();
-  const { inboxTasks, addInboxTask, toggleInboxTask, scheduleInboxTask } = useDayflow();
+  const { inboxTasks, addInboxTask, toggleInboxTask, scheduleInboxTask, removeInboxTask } = useDayflow();
   const [draft, setDraft] = useState('');
+  const [planningId, setPlanningId] = useState<string | null>(null);
+  const [planDay, setPlanDay] = useState<0 | 1>(0);
+  const [planTime, setPlanTime] = useState(() => {
+    const d = new Date();
+    return Math.min(Math.ceil((d.getHours() * 60 + d.getMinutes() + 5) / 15) * 15, 23 * 60);
+  });
+
+  const confirmPlan = (id: string) => {
+    const d = new Date();
+    d.setDate(d.getDate() + planDay);
+    scheduleInboxTask(id, planTime, toDateKey(d));
+    setPlanningId(null);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
 
   const addDraft = () => {
     const title = draft.trim();
@@ -91,7 +105,8 @@ export default function InboxScreen() {
         {inboxTasks.length ? (
           <View style={styles.taskList}>
             {inboxTasks.map((task) => (
-              <Card key={task.id} style={styles.taskCard}>
+              <Card key={task.id} style={styles.taskOuter}>
+              <View style={styles.taskCard}>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`${task.done ? 'Mark incomplete' : 'Mark complete'}: ${task.title}`}
@@ -120,7 +135,7 @@ export default function InboxScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={`Add ${task.title} to today's plan`}
                     onPress={() => {
-                      scheduleInboxTask(task.id);
+                      setPlanningId(planningId === task.id ? null : task.id);
                       void Haptics.selectionAsync();
                     }}
                     testID={`schedule-${task.id}`}
@@ -130,9 +145,61 @@ export default function InboxScreen() {
                     ]}
                   >
                     <Feather name="calendar" size={15} color={colors.secondaryForeground} />
-                    <Text style={[styles.scheduleText, { color: colors.secondaryForeground }]}>Today</Text>
+                    <Text style={[styles.scheduleText, { color: colors.secondaryForeground }]}>Plan</Text>
                   </Pressable>
-                ) : null}
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${task.title}`}
+                    onPress={() => removeInboxTask(task.id)}
+                    hitSlop={8}
+                    testID={`remove-inbox-${task.id}`}
+                    style={styles.scheduleButton}
+                  >
+                    <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+                  </Pressable>
+                )}
+              </View>
+              {planningId === task.id ? (
+                <View style={[styles.planner, { borderTopColor: colors.border }]}>
+                  <View style={styles.planRow}>
+                    {(['Today', 'Tomorrow'] as const).map((label, i) => {
+                      const sel = planDay === i;
+                      return (
+                        <Pressable
+                          key={label}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked: sel }}
+                          onPress={() => setPlanDay(i as 0 | 1)}
+                          testID={`plan-day-${i}`}
+                          style={[styles.dayChip, { backgroundColor: sel ? colors.primary : colors.muted }]}
+                        >
+                          <Text style={{ color: sel ? colors.primaryForeground : colors.foreground, fontWeight: '700', fontSize: 13 }}>{label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <View style={styles.planRow}>
+                    <Pressable accessibilityLabel="15 minutes earlier" onPress={() => setPlanTime((t) => Math.max(0, t - 15))} style={[styles.stepBtn, { backgroundColor: colors.secondary }]}>
+                      <Feather name="minus" size={16} color={colors.secondaryForeground} />
+                    </Pressable>
+                    <Text style={[styles.planTime, { color: colors.foreground }]}>{formatMinutes(planTime)}</Text>
+                    <Pressable accessibilityLabel="15 minutes later" onPress={() => setPlanTime((t) => Math.min(23 * 60 + 45, t + 15))} style={[styles.stepBtn, { backgroundColor: colors.secondary }]}>
+                      <Feather name="plus" size={16} color={colors.secondaryForeground} />
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Add to timeline"
+                      onPress={() => confirmPlan(task.id)}
+                      testID={`confirm-plan-${task.id}`}
+                      style={[styles.confirm, { backgroundColor: colors.primary }]}
+                    >
+                      <Feather name="check" size={16} color={colors.primaryForeground} />
+                      <Text style={{ color: colors.primaryForeground, fontWeight: '700' }}>Add</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
               </Card>
             ))}
           </View>
@@ -167,7 +234,14 @@ const styles = StyleSheet.create({
   addButton: { minHeight: 46, borderRadius: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   addButtonText: { fontSize: 14, fontWeight: '700' },
   taskList: { gap: 10 },
-  taskCard: { minHeight: 74, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  taskOuter: { padding: 12 },
+  taskCard: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  planner: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 10, paddingTop: 12, gap: 10 },
+  planRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dayChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 },
+  stepBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  planTime: { fontSize: 16, fontWeight: '800', minWidth: 78, textAlign: 'center' },
+  confirm: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 38, borderRadius: 19 },
   taskMain: { minHeight: 48, flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11 },
   checkCircle: { width: 24, height: 24, borderWidth: 1.5, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   taskTitle: { flex: 1, fontSize: 14, lineHeight: 19, fontWeight: '600' },

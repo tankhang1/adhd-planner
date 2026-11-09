@@ -5,9 +5,12 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Svg, { Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDayflow, formatMinutes } from '@/context/DayflowContext';
+import { useDayflow, formatMinutes, toDateKey, fromDateKey, todayKey } from '@/context/DayflowContext';
+import { useCalendarEvents } from '@/services/calendar';
+import type { CalendarEvent } from '@/services/calendar';
 import type { DayTask } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { ActivityIcon } from '@/components/ActivityIcon';
 
 type Colors = ReturnType<typeof useColors>;
 const PX_PER_MIN = 1.5;
@@ -23,7 +26,7 @@ function minutesNow(d: Date) {
 
 /* ------------------------------ Week strip ------------------------------ */
 
-function WeekStrip({ today, selected, onSelect }: { today: Date; selected: number; onSelect: (i: number) => void }) {
+function WeekStrip({ today, selected, onSelect, busy }: { today: Date; selected: string; onSelect: (key: string) => void; busy: Set<string> }) {
   const colors = useColors();
   const start = new Date(today);
   start.setDate(today.getDate() - ((today.getDay() + 6) % 7)); // Monday
@@ -35,7 +38,8 @@ function WeekStrip({ today, selected, onSelect }: { today: Date; selected: numbe
   return (
     <View style={styles.week}>
       {days.map((d, i) => {
-        const isSel = i === selected;
+        const key = toDateKey(d);
+        const isSel = key === selected;
         const isToday = d.toDateString() === today.toDateString();
         return (
           <Pressable
@@ -43,7 +47,7 @@ function WeekStrip({ today, selected, onSelect }: { today: Date; selected: numbe
             accessibilityRole="button"
             accessibilityState={{ selected: isSel }}
             accessibilityLabel={d.toDateString()}
-            onPress={() => onSelect(i)}
+            onPress={() => onSelect(key)}
             testID={`week-day-${i}`}
             style={[styles.weekDay, { backgroundColor: isSel ? colors.primary : 'transparent' }]}
           >
@@ -56,7 +60,11 @@ function WeekStrip({ today, selected, onSelect }: { today: Date; selected: numbe
             <View
               style={[
                 styles.weekDot,
-                { backgroundColor: isToday ? (isSel ? colors.primaryForeground : colors.accent) : 'transparent' },
+                {
+                  backgroundColor: isToday
+                    ? isSel ? colors.primaryForeground : colors.accent
+                    : busy.has(key) ? (isSel ? colors.primaryForeground : colors.border) : 'transparent',
+                },
               ]}
             />
           </Pressable>
@@ -131,7 +139,7 @@ function NowCard({ tasks, now }: { tasks: DayTask[]; now: number }) {
       <View style={styles.nowRing}>
         <Ring progress={progress} color={ink} track="rgba(255,255,255,0.7)" />
         <View style={styles.nowRingIcon}>
-          <Feather name={task.icon} size={22} color={ink} />
+          <ActivityIcon name={task.icon} size={26} color={ink} />
         </View>
       </View>
       <View style={{ flex: 1, gap: 3 }}>
@@ -169,8 +177,14 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
       </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${task.title}, ${formatMinutes(task.start)}, ${task.duration} minutes. Open focus timer.`}
+        accessibilityLabel={`${task.title}, ${formatMinutes(task.start)}, ${task.duration} minutes.`}
+        accessibilityHint="Tap to open the focus timer. Long press to edit."
         onPress={() => router.push({ pathname: '/focus', params: { taskId: task.id } })}
+        onLongPress={() => {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          router.push({ pathname: '/add-task', params: { id: task.id } });
+        }}
+        delayLongPress={350}
         testID={`task-${task.id}`}
         style={({ pressed }) => [
           styles.block,
@@ -186,7 +200,7 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
           <View style={[styles.blockFill, { height: `${fill * 100}%`, backgroundColor: ink }]} />
         ) : null}
         <View style={[styles.blockIcon, { backgroundColor: colors.card }]}>
-          <Feather name={task.icon} size={18} color={ink} />
+          <ActivityIcon name={task.icon} size={21} color={ink} />
         </View>
         <View style={styles.blockCopy}>
           <Text
@@ -195,6 +209,9 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
           >
             {task.title}
           </Text>
+          {task.rolledOver ? (
+            <Text style={[styles.blockMeta, { color: ink, fontWeight: '700' }]}>Moved from yesterday</Text>
+          ) : null}
           <Text style={[styles.blockMeta, { color: colors.mutedForeground }]}>
             {formatMinutes(task.start)} – {formatMinutes(task.start + task.duration)} · {task.duration} min
           </Text>
@@ -214,6 +231,29 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
           {task.done ? <Feather name="check" size={15} color="#FFFFFF" /> : null}
         </Pressable>
       </Pressable>
+    </View>
+  );
+}
+
+function CalendarBlock({ event }: { event: CalendarEvent }) {
+  const colors = useColors();
+  return (
+    <View style={styles.row}>
+      <View style={styles.timeCol}>
+        <Text style={[styles.timeText, { color: colors.mutedForeground }]}>{formatMinutes(event.start)}</Text>
+      </View>
+      <View
+        accessibilityLabel={`Calendar event ${event.title}, ${formatMinutes(event.start)}`}
+        style={[styles.block, styles.calBlock, { minHeight: Math.max(56, event.duration * PX_PER_MIN * 0.6), borderColor: colors.border, backgroundColor: colors.card }]}
+      >
+        <View style={[styles.calStripe, { backgroundColor: event.color ?? colors.skyInk }]} />
+        <View style={styles.blockCopy}>
+          <Text style={[styles.blockTitle, { color: colors.foreground }]} numberOfLines={2}>{event.title}</Text>
+          <Text style={[styles.blockMeta, { color: colors.mutedForeground }]}>
+            <Feather name="calendar" size={11} /> {formatMinutes(event.start)} – {formatMinutes(event.start + event.duration)}
+          </Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -249,9 +289,11 @@ export default function TodayScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const web = Platform.OS === 'web';
-  const { dayTasks, toggleDayTask } = useDayflow();
+  const {
+    dayTasks, toggleDayTask, tasksFor, selectedDate, setSelectedDate,
+    rolledOverCount, dismissRolloverBanner, calendarSyncEnabled,
+  } = useDayflow();
   const [clock, setClock] = useState(() => new Date());
-  const [selectedDay, setSelectedDay] = useState(() => (new Date().getDay() + 6) % 7);
 
   useEffect(() => {
     const id = setInterval(() => setClock(new Date()), 30_000);
@@ -259,9 +301,21 @@ export default function TodayScreen() {
   }, []);
 
   const now = minutesNow(clock);
-  const sorted = useMemo(() => [...dayTasks].sort((a, b) => a.start - b.start), [dayTasks]);
-  const completed = dayTasks.filter((t) => t.done).length;
-  const nowIndex = sorted.findIndex((t) => t.start > now);
+  const isToday = selectedDate === todayKey();
+  const sorted = tasksFor(selectedDate);
+  const events = useCalendarEvents(selectedDate, calendarSyncEnabled);
+  const timedEvents = events.filter((e) => !e.allDay);
+  const allDay = events.filter((e) => e.allDay);
+  const busy = useMemo(() => new Set(dayTasks.map((t) => t.date)), [dayTasks]);
+  const completed = sorted.filter((t) => t.done).length;
+  type Item = { kind: 'task'; task: (typeof sorted)[number] } | { kind: 'event'; event: CalendarEvent };
+  const items: Item[] = [
+    ...sorted.map((task) => ({ kind: 'task' as const, task })),
+    ...timedEvents.map((event) => ({ kind: 'event' as const, event })),
+  ].sort((a, b) => (a.kind === 'task' ? a.task.start : a.event.start) - (b.kind === 'task' ? b.task.start : b.event.start));
+  const startOf = (it: Item) => (it.kind === 'task' ? it.task.start : it.event.start);
+  const endOf = (it: Item) => startOf(it) + (it.kind === 'task' ? it.task.duration : it.event.duration);
+  const nowIndex = isToday ? items.findIndex((it) => startOf(it) > now) : -2;
   const hour = clock.getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const nowLabel = clock.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -281,48 +335,78 @@ export default function TodayScreen() {
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.date, { color: colors.mutedForeground }]}>
-              {clock.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              {fromDateKey(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </Text>
-            <Text style={[styles.greeting, { color: colors.foreground }]}>{greeting}</Text>
+            <Text style={[styles.greeting, { color: colors.foreground }]}>
+              {isToday ? greeting : fromDateKey(selectedDate) < clock ? 'Looking back' : 'Planning ahead'}
+            </Text>
           </View>
           <View style={[styles.progressChip, { backgroundColor: colors.secondary }]}>
             <Feather name="check-circle" size={14} color={colors.secondaryForeground} />
             <Text style={[styles.progressChipText, { color: colors.secondaryForeground }]}>
-              {completed}/{dayTasks.length}
+              {completed}/{sorted.length}
             </Text>
           </View>
         </View>
 
-        <WeekStrip today={clock} selected={selectedDay} onSelect={setSelectedDay} />
+        <WeekStrip today={clock} selected={selectedDate} onSelect={setSelectedDate} busy={busy} />
 
-        <NowCard tasks={sorted} now={now} />
+        {rolledOverCount > 0 && isToday ? (
+          <View style={[styles.banner, { backgroundColor: colors.lemon }]}>
+            <Feather name="sunrise" size={18} color={colors.lemonInk} />
+            <Text style={[styles.bannerText, { color: colors.foreground }]}>
+              Welcome back! I moved {rolledOverCount} unfinished {rolledOverCount === 1 ? 'thing' : 'things'} to today. No pressure.
+            </Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" hitSlop={10} onPress={dismissRolloverBanner} testID="dismiss-rollover">
+              <Feather name="x" size={18} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+        ) : null}
+
+        {isToday ? <NowCard tasks={sorted} now={now} /> : null}
+
+        {allDay.length ? (
+          <View style={styles.allDayRow}>
+            {allDay.map((e) => (
+              <View key={e.id} style={[styles.allDayChip, { backgroundColor: colors.sky }]}>
+                <Feather name="calendar" size={12} color={colors.skyInk} />
+                <Text style={[styles.allDayText, { color: colors.foreground }]} numberOfLines={1}>{e.title}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
 
         <View style={styles.sectionRow}>
           <Text style={[styles.section, { color: colors.foreground }]}>Your day</Text>
-          <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>Tap a block to focus</Text>
+          <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>Tap to focus · hold to edit</Text>
         </View>
 
         <View>
-          {sorted.map((task, i) => {
-            const prev = sorted[i - 1];
-            const gap = prev ? task.start - (prev.start + prev.duration) : 0;
+          {items.map((it, i) => {
+            const prev = items[i - 1];
+            const gap = prev ? startOf(it) - endOf(prev) : 0;
+            const key = it.kind === 'task' ? it.task.id : it.event.id;
             return (
-              <React.Fragment key={task.id}>
+              <React.Fragment key={key}>
                 {i > 0 ? <Gap minutes={gap} /> : null}
                 {i === nowIndex ? <NowLine label={nowLabel} /> : null}
-                <TimelineBlock
-                  task={task}
-                  now={now}
-                  onToggle={() => {
-                    void Haptics.selectionAsync();
-                    toggleDayTask(task.id);
-                  }}
-                />
+                {it.kind === 'task' ? (
+                  <TimelineBlock
+                    task={it.task}
+                    now={isToday ? now : fromDateKey(selectedDate) < clock ? 24 * 60 : -1}
+                    onToggle={() => {
+                      void Haptics.selectionAsync();
+                      toggleDayTask(it.task.id);
+                    }}
+                  />
+                ) : (
+                  <CalendarBlock event={it.event} />
+                )}
               </React.Fragment>
             );
           })}
-          {sorted.length && nowIndex === -1 ? <NowLine label={nowLabel} /> : null}
-          {!sorted.length ? (
+          {items.length && nowIndex === -1 ? <NowLine label={nowLabel} /> : null}
+          {!items.length ? (
             <View style={[styles.empty, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name="sun" size={26} color={colors.primary} />
               <Text style={[styles.section, { color: colors.foreground }]}>An open day</Text>
@@ -403,6 +487,13 @@ const styles = StyleSheet.create({
   gapRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, minHeight: 22 },
   gapLine: { width: 0, height: 22, borderLeftWidth: 2, borderStyle: 'dashed', marginLeft: 18 },
   gapText: { fontSize: 12, fontWeight: '500' },
+  banner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 20 },
+  bannerText: { flex: 1, fontSize: 14, lineHeight: 19, fontWeight: '600' },
+  allDayRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  allDayChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, maxWidth: '100%' },
+  allDayText: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
+  calBlock: { borderWidth: 1, borderStyle: 'dashed', paddingLeft: 18 },
+  calStripe: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 },
   empty: { alignItems: 'center', gap: 8, padding: 28, borderRadius: 24, borderWidth: 1 },
   fab: {
     position: 'absolute',

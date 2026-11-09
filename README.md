@@ -83,3 +83,24 @@ pnpm --filter @workspace/mockup-sandbox run dev   # http://localhost:5173
 | `DATABASE_URL` | api-server, db | Yes (API only) |
 | `PORT` | api-server | Yes (API only) |
 | `EXPO_PUBLIC_DOMAIN` | mobile static build | Build only |
+
+## Widgets & Live Activity (development build)
+
+Widgets, Live Activity, reminders and calendar need native code, so they **don't run in Expo Go**. Use a development build:
+
+```bash
+cd artifacts/mobile
+# One-time: set your Apple Team ID in app.json → expo.ios.appleTeamId
+npx expo prebuild --clean          # generates ios/ and android/ (git-ignored)
+npx expo run:ios --device          # or: npx expo run:android
+# or in the cloud: npx eas build --profile development
+```
+
+| Piece | Where |
+| --- | --- |
+| iOS widget + Live Activity UI (SwiftUI) | `artifacts/mobile/targets/widget/` (via `@bacons/apple-targets`) |
+| Live Activity start/update/end (Swift module) | `artifacts/mobile/modules/dayflow-live-activity/` |
+| Android widget (JSX) | `artifacts/mobile/widgets/android.tsx` (via `react-native-android-widget`) |
+| Data sync from the app | `artifacts/mobile/services/widgets.ts` |
+
+The app and the iOS widget share data through the App Group `group.com.nexa.dayflow`. If you change the bundle ID, update it in `app.json`, `services/widgets.ts` and `targets/widget/Shared.swift`.

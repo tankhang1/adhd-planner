@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TASK_ICONS, TASK_TONES, formatMinutes, useDayflow } from '@/context/DayflowContext';
+import { TASK_TONES, formatMinutes, fromDateKey, useDayflow } from '@/context/DayflowContext';
 import type { TaskIcon, TaskTone } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { ActivityIcon } from '@/components/ActivityIcon';
+import { IconPicker } from '@/components/IconPicker';
 
 const DURATIONS = [5, 15, 25, 30, 45, 60, 90];
 
@@ -18,12 +20,15 @@ function nextQuarter() {
 export default function AddTaskScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { addDayTask } = useDayflow();
-  const [title, setTitle] = useState('');
-  const [start, setStart] = useState(nextQuarter);
-  const [duration, setDuration] = useState(25);
-  const [tone, setTone] = useState<TaskTone>('lilac');
-  const [icon, setIcon] = useState<TaskIcon>('star');
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { addDayTask, updateDayTask, removeDayTask, dayTasks, selectedDate } = useDayflow();
+  const existing = id ? dayTasks.find((t) => t.id === id) : undefined;
+  const [title, setTitle] = useState(existing?.title ?? '');
+  const [start, setStart] = useState(existing?.start ?? nextQuarter());
+  const [duration, setDuration] = useState(existing?.duration ?? 25);
+  const [tone, setTone] = useState<TaskTone>(existing?.tone ?? 'lilac');
+  const [icon, setIcon] = useState<TaskIcon>(existing?.icon ?? 'star');
+  const date = existing?.date ?? selectedDate;
   const ink = colors[`${tone}Ink` as const];
   const canSave = title.trim().length > 0;
 
@@ -31,9 +36,23 @@ export default function AddTaskScreen() {
 
   const save = () => {
     if (!canSave) return;
-    addDayTask({ title, start, duration, tone, icon });
+    if (existing) updateDayTask(existing.id, { title, start, duration, tone, icon });
+    else addDayTask({ title, start, duration, tone, icon, date });
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
+  };
+
+  const remove = () => {
+    if (!existing) return;
+    const doIt = () => {
+      removeDayTask(existing.id);
+      router.back();
+    };
+    if (Platform.OS === 'web') return doIt();
+    Alert.alert('Remove this activity?', existing.title, [
+      { text: 'Keep it', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: doIt },
+    ]);
   };
 
   return (
@@ -42,7 +61,7 @@ export default function AddTaskScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel="Cancel" onPress={() => router.back()} hitSlop={12} testID="cancel-add">
           <Text style={[styles.topBtn, { color: colors.mutedForeground }]}>Cancel</Text>
         </Pressable>
-        <Text style={[styles.topTitle, { color: colors.foreground }]}>New activity</Text>
+        <Text style={[styles.topTitle, { color: colors.foreground }]}>{existing ? 'Edit activity' : 'New activity'}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Save activity" disabled={!canSave} onPress={save} hitSlop={12} testID="save-add">
           <Text style={[styles.topBtn, { color: colors.primary, opacity: canSave ? 1 : 0.4, fontWeight: '700' }]}>Save</Text>
         </Pressable>
@@ -52,14 +71,14 @@ export default function AddTaskScreen() {
         {/* Preview */}
         <View style={[styles.preview, { backgroundColor: colors[tone] }]}>
           <View style={[styles.previewIcon, { backgroundColor: colors.card }]}>
-            <Feather name={icon} size={24} color={ink} />
+            <ActivityIcon name={icon} size={28} color={ink} />
           </View>
           <TextInput
             value={title}
             onChangeText={setTitle}
             placeholder="What do you want to do?"
             placeholderTextColor={colors.mutedForeground}
-            autoFocus
+            autoFocus={!existing}
             returnKeyType="done"
             onSubmitEditing={save}
             accessibilityLabel="Activity name"
@@ -68,7 +87,9 @@ export default function AddTaskScreen() {
           />
         </View>
 
-        <Text style={[styles.label, { color: colors.mutedForeground }]}>START</Text>
+        <Text style={[styles.label, { color: colors.mutedForeground }]}>
+          {fromDateKey(date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase()} · START
+        </Text>
         <View style={[styles.timeRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Pressable accessibilityLabel="15 minutes earlier" onPress={() => shift(-15)} style={[styles.stepBtn, { backgroundColor: colors.secondary }]} testID="time-minus">
             <Feather name="minus" size={18} color={colors.secondaryForeground} />
@@ -118,24 +139,20 @@ export default function AddTaskScreen() {
         </View>
 
         <Text style={[styles.label, { color: colors.mutedForeground }]}>ICON</Text>
-        <View style={styles.wrap}>
-          {TASK_ICONS.map((i) => {
-            const sel = i === icon;
-            return (
-              <Pressable
-                key={i}
-                accessibilityRole="button"
-                accessibilityLabel={`Icon ${i}`}
-                accessibilityState={{ selected: sel }}
-                onPress={() => setIcon(i)}
-                testID={`icon-${i}`}
-                style={[styles.iconCell, { backgroundColor: sel ? colors[tone] : colors.card, borderColor: sel ? ink : colors.border }]}
-              >
-                <Feather name={i} size={20} color={sel ? ink : colors.mutedForeground} />
-              </Pressable>
-            );
-          })}
-        </View>
+        <IconPicker value={icon} onChange={setIcon} fill={colors[tone]} ink={ink} />
+
+        {existing ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Remove activity"
+            onPress={remove}
+            testID="remove-task"
+            style={({ pressed }) => [styles.remove, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Feather name="trash-2" size={17} color={colors.destructive} />
+            <Text style={{ color: colors.destructive, fontWeight: '700', fontSize: 15 }}>Remove activity</Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -158,5 +175,6 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, borderWidth: 1 },
   chipText: { fontSize: 14, fontWeight: '600' },
   swatch: { width: 44, height: 44, borderRadius: 22, borderWidth: 3 },
+  remove: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 24, minHeight: 52, borderRadius: 18, borderWidth: 1 },
   iconCell: { width: 50, height: 50, borderRadius: 16, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
 });

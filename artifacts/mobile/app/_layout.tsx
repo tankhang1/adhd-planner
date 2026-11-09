@@ -12,17 +12,59 @@ import {
   Inter_700Bold,
   useFonts,
 } from '@expo-google-fonts/inter';
-import { Stack } from 'expo-router';
+import { Stack, router, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { DayflowProvider } from '@/context/DayflowContext';
+import { DayflowProvider, useDayflow } from '@/context/DayflowContext';
+import { addReminderTapListener, syncReminders } from '@/services/reminders';
+import { syncWidgets } from '@/services/widgets';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+/** Onboarding gate + reminder scheduling. */
+function AppEffects() {
+  const { hydrated, onboarded, dayTasks, remindersEnabled, liveActivityEnabled } = useDayflow();
+  const segments = useSegments();
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const inOnboarding = segments[0] === 'onboarding';
+    if (!onboarded && !inOnboarding) router.replace('/onboarding');
+  }, [hydrated, onboarded, segments]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const t = setTimeout(() => void syncReminders(dayTasks, remindersEnabled).catch(() => {}), 800);
+    return () => clearTimeout(t);
+  }, [hydrated, dayTasks, remindersEnabled]);
+
+  // Widgets + Live Activity: on every plan change, and each minute so the
+  // Live Activity switches to the next block while the app is open.
+  useEffect(() => {
+    if (!hydrated) return;
+    const run = () => void syncWidgets(dayTasks, liveActivityEnabled).catch(() => {});
+    const t = setTimeout(run, 500);
+    const i = setInterval(run, 60_000);
+    return () => {
+      clearTimeout(t);
+      clearInterval(i);
+    };
+  }, [hydrated, dayTasks, liveActivityEnabled]);
+
+  useEffect(
+    () => addReminderTapListener((taskId) => router.push({ pathname: '/focus', params: { taskId } })),
+    [],
+  );
+
+  return null;
+}
+
 function RootLayoutNav() {
   return (
+    <>
+    <AppEffects />
     <Stack screenOptions={{ headerBackTitle: 'Back' }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
@@ -33,7 +75,11 @@ function RootLayoutNav() {
         name="add-task"
         options={{ headerShown: false, presentation: 'modal' }}
       />
+      <Stack.Screen name="routine-run" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+      <Stack.Screen name="routine-edit" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
     </Stack>
+    </>
   );
 }
 
