@@ -6,6 +6,7 @@ import { requestCalendarPermission } from '@/services/calendar';
 import { Feather } from '@expo/vector-icons';
 import { BodyText, Card, Eyebrow, Page, PageTitle, SectionHeading } from '@/components/DayflowUI';
 import { useDayflow } from '@/context/DayflowContext';
+import { REMINDER_LEADS, formatMinutes } from '@/context/DayflowContext';
 import type { VisualMode } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
 
@@ -102,7 +103,9 @@ export default function SettingsScreen() {
     visualMode, setVisualMode, remindersEnabled, setRemindersEnabled,
     calendarSyncEnabled, setCalendarSyncEnabled, resetOnboarding,
     liveActivityEnabled, setLiveActivityEnabled,
+    reminderLead, setReminderLead, quietStart, quietEnd, setQuietHours, profile,
   } = useDayflow();
+  const quietOn = quietStart !== null && quietEnd !== null;
 
   const toggleReminders = async (on: boolean) => {
     if (!on) return setRemindersEnabled(false);
@@ -161,6 +164,60 @@ export default function SettingsScreen() {
           onChange={(v) => void toggleReminders(v)}
           testID="toggle-reminders"
         />
+        {remindersEnabled ? (
+          <View style={[styles.subPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>Heads-up before each activity</Text>
+            <View style={styles.chipRow}>
+              {REMINDER_LEADS.map((m) => {
+                const sel = m === reminderLead;
+                return (
+                  <Pressable
+                    key={m}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: sel }}
+                    onPress={() => setReminderLead(m)}
+                    testID={`lead-${m}`}
+                    style={[styles.chip, { backgroundColor: sel ? colors.primary : colors.muted }]}
+                  >
+                    <Text style={{ color: sel ? colors.primaryForeground : colors.foreground, fontWeight: '700' }}>{m} min</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.quietRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modeTitle, { color: colors.foreground }]}>Quiet hours</Text>
+                <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>
+                  {quietOn ? `No reminders ${formatMinutes(quietStart)} – ${formatMinutes(quietEnd)}` : 'Reminders can arrive any time'}
+                </Text>
+              </View>
+              <Switch
+                value={quietOn}
+                onValueChange={(on) =>
+                  on ? setQuietHours(profile?.sleep ?? 22 * 60, profile?.wake ?? 7 * 60) : setQuietHours(null, null)
+                }
+                trackColor={{ true: colors.primary, false: colors.input }}
+                accessibilityLabel="Quiet hours"
+                testID="toggle-quiet"
+              />
+            </View>
+            {quietOn ? (
+              <View style={styles.chipRow}>
+                {([['Start', quietStart, (v: number) => setQuietHours(v, quietEnd)], ['End', quietEnd, (v: number) => setQuietHours(quietStart, v)]] as const).map(([label, value, setV]) => (
+                  <View key={label} style={[styles.quietStep, { backgroundColor: colors.muted }]}>
+                    <Pressable accessibilityLabel={`${label} earlier`} hitSlop={6} onPress={() => setV(((value ?? 0) - 30 + 1440) % 1440)}>
+                      <Feather name="minus" size={16} color={colors.foreground} />
+                    </Pressable>
+                    <Text style={[styles.quietText, { color: colors.foreground }]}>{label} {formatMinutes(value ?? 0)}</Text>
+                    <Pressable accessibilityLabel={`${label} later`} hitSlop={6} onPress={() => setV(((value ?? 0) + 30) % 1440)}>
+                      <Feather name="plus" size={16} color={colors.foreground} />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
         <ToggleRow
           icon="calendar"
           title="Show my calendar"
@@ -278,6 +335,13 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  subPanel: { padding: 14, borderRadius: 20, borderWidth: 1, gap: 12, marginTop: -4 },
+  subLabel: { fontSize: 12, fontWeight: '700' },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 },
+  quietRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  quietStep: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, height: 40, borderRadius: 20 },
+  quietText: { fontSize: 13, fontWeight: '700' },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 20, borderWidth: 1 },
   header: { gap: 8 },
   headerCopy: { maxWidth: 340, fontSize: 15, lineHeight: 22 },

@@ -25,7 +25,10 @@ const queryClient = new QueryClient();
 
 /** Onboarding gate + reminder scheduling. */
 function AppEffects() {
-  const { hydrated, onboarded, dayTasks, remindersEnabled, liveActivityEnabled } = useDayflow();
+  const {
+    hydrated, onboarded, dayTasks, remindersEnabled, liveActivityEnabled,
+    reminderLead, quietStart, quietEnd,
+  } = useDayflow();
   const segments = useSegments();
 
   useEffect(() => {
@@ -36,9 +39,10 @@ function AppEffects() {
 
   useEffect(() => {
     if (!hydrated) return;
-    const t = setTimeout(() => void syncReminders(dayTasks, remindersEnabled).catch(() => {}), 800);
+    const prefs = { enabled: remindersEnabled, lead: reminderLead, quietStart, quietEnd };
+    const t = setTimeout(() => void syncReminders(dayTasks, prefs).catch(() => {}), 800);
     return () => clearTimeout(t);
-  }, [hydrated, dayTasks, remindersEnabled]);
+  }, [hydrated, dayTasks, remindersEnabled, reminderLead, quietStart, quietEnd]);
 
   // Widgets + Live Activity: on every plan change, and each minute so the
   // Live Activity switches to the next block while the app is open.

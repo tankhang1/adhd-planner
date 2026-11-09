@@ -50,12 +50,43 @@ export interface DayTask {
   label: string;
   /** Moved forward automatically from an earlier day */
   rolledOver?: boolean;
+  /** Set when this task is an instance of a repeating series */
+  seriesId?: string;
+}
+
+/** A repeating task template. `days` uses JS weekday numbers (0 = Sunday). */
+export interface RecurringTask {
+  id: string;
+  title: string;
+  start: number;
+  duration: number;
+  tone: TaskTone;
+  icon: TaskIcon;
+  days: number[];
+  /** First date (YYYY-MM-DD) the series applies to */
+  from: string;
+  /** Dates where a single instance was removed */
+  skip: string[];
 }
 
 export type TaskDraft = Pick<DayTask, 'title' | 'start' | 'duration' | 'tone' | 'icon'> & {
   date?: string;
   label?: string;
+  /** Weekdays to repeat on (0 = Sunday). Empty/undefined = one-off. */
+  repeatDays?: number[];
 };
+
+export type EditScope = 'one' | 'series';
+
+export const REPEAT_PRESETS: Array<{ key: string; label: string; days: number[] }> = [
+  { key: 'once', label: 'Once', days: [] },
+  { key: 'daily', label: 'Every day', days: [0, 1, 2, 3, 4, 5, 6] },
+  { key: 'weekdays', label: 'Weekdays', days: [1, 2, 3, 4, 5] },
+  { key: 'weekends', label: 'Weekends', days: [0, 6] },
+];
+
+export const REMINDER_LEADS = [5, 10, 15] as const;
+export type ReminderLead = (typeof REMINDER_LEADS)[number];
 
 export interface InboxTask {
   id: string;
@@ -102,6 +133,15 @@ interface DayflowState {
   liveActivityEnabled: boolean;
   /** Count of tasks moved forward at last open, for the gentle banner */
   rolledOverCount: number;
+  recurring: RecurringTask[];
+  reminderLead: ReminderLead;
+  /** Quiet hours, minutes since midnight. null = off. */
+  quietStart: number | null;
+  quietEnd: number | null;
+  /** Last day the app was opened, for the "welcome back" moment */
+  lastOpenDate: string | null;
+  /** Days since last open, computed at launch (0 = opened yesterday/today) */
+  awayDays: number;
 }
 
 interface DayflowContextValue extends DayflowState {
@@ -110,8 +150,13 @@ interface DayflowContextValue extends DayflowState {
   setSelectedDate: (date: string) => void;
   tasksFor: (date: string) => DayTask[];
   addDayTask: (task: TaskDraft) => void;
-  updateDayTask: (id: string, patch: Partial<TaskDraft>) => void;
-  removeDayTask: (id: string) => void;
+  updateDayTask: (id: string, patch: Partial<TaskDraft>, scope?: EditScope) => void;
+  removeDayTask: (id: string, scope?: EditScope) => void;
+  seriesFor: (task: DayTask) => RecurringTask | undefined;
+  moveRolledOverToInbox: () => void;
+  dismissWelcomeBack: () => void;
+  setReminderLead: (lead: ReminderLead) => void;
+  setQuietHours: (start: number | null, end: number | null) => void;
   toggleDayTask: (id: string) => void;
   addInboxTask: (title: string) => void;
   toggleInboxTask: (id: string) => void;
@@ -185,6 +230,7 @@ function normalizeDayTasks(tasks: unknown, fallbackDate: string): DayTask[] {
       done: !!t.done,
       label: t.label ?? 'Activity',
       rolledOver: !!t.rolledOver,
+      ...(typeof t.seriesId === 'string' ? { seriesId: t.seriesId } : {}),
     };
   });
 }
@@ -208,10 +254,19 @@ function normalizeRoutines(list: unknown): Routine[] | null {
  * Unfinished tasks from past days move to today — no "overdue", no red.
  * Returns the updated list and how many moved.
  */
+const HISTORY_DAYS = 90;
+
+function daysBetween(a: string, b: string) {
+  return Math.round((fromDateKey(b).getTime() - fromDateKey(a).getTime()) / 86_400_000);
+}
+
 function rollOver(tasks: DayTask[], today: string): [DayTask[], number] {
   let moved = 0;
   const next = tasks
-    .filter((t) => !(t.date < today && t.done)) // past & done → archive (drop)
+    // keep finished tasks as gentle history, but only for a while
+    .filter((t) => !(t.date < today && t.done && daysBetween(t.date, today) > HISTORY_DAYS))
+    // a missed repeat instance doesn't follow you — tomorrow brings a fresh one
+    .filter((t) => !(t.date < today && !t.done && t.seriesId))
     .map((t) => {
       if (t.date < today && !t.done) {
         moved += 1;
@@ -220,6 +275,31 @@ function rollOver(tasks: DayTask[], today: string): [DayTask[], number] {
       return t;
     });
   return [next, moved];
+}
+
+/** Create missing instances of repeating tasks for the given dates. */
+function materialize(tasks: DayTask[], recurring: RecurringTask[], dates: string[]): DayTask[] {
+  const additions: DayTask[] = [];
+  for (const date of dates) {
+    const weekday = fromDateKey(date).getDay();
+    for (const r of recurring) {
+      if (date < r.from || !r.days.includes(weekday) || r.skip.includes(date)) continue;
+      if (tasks.some((t) => t.seriesId === r.id && t.date === date)) continue;
+      additions.push({
+        id: `${r.id}-${date}`,
+        seriesId: r.id,
+        date,
+        title: r.title,
+        start: r.start,
+        duration: r.duration,
+        tone: r.tone,
+        icon: r.icon,
+        done: false,
+        label: 'Repeats',
+      });
+    }
+  }
+  return additions.length ? [...tasks, ...additions] : tasks;
 }
 
 /** A starter day built from the onboarding answers. */
@@ -289,6 +369,12 @@ const initialState: DayflowState = {
   calendarSyncEnabled: false,
   liveActivityEnabled: true,
   rolledOverCount: 0,
+  recurring: [],
+  reminderLead: 5,
+  quietStart: null,
+  quietEnd: null,
+  lastOpenDate: null,
+  awayDays: 0,
 };
 
 /* -------------------------------- Provider ------------------------------- */
@@ -311,9 +397,14 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
         setState((current) => {
           const merged: DayflowState = { ...current, ...parsed, activeRoutineId: null };
           const [tasks, moved] = rollOver(normalizeDayTasks(merged.dayTasks, today), today);
+          const recurring = Array.isArray(merged.recurring) ? merged.recurring : [];
+          const away = merged.lastOpenDate ? Math.max(0, daysBetween(merged.lastOpenDate, today) - 1) : 0;
           return {
             ...merged,
-            dayTasks: tasks,
+            recurring,
+            lastOpenDate: today,
+            awayDays: away || merged.awayDays || 0,
+            dayTasks: materialize(tasks, recurring, [today]),
             routines: normalizeRoutines(merged.routines) ?? current.routines,
             rolledOverCount: moved || merged.rolledOverCount,
           };
@@ -336,11 +427,20 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
       setSelectedDate(now);
       setState((s) => {
         const [tasks, moved] = rollOver(s.dayTasks, now);
-        return { ...s, dayTasks: tasks, rolledOverCount: moved };
+        return { ...s, dayTasks: materialize(tasks, s.recurring, [now]), rolledOverCount: moved, lastOpenDate: now };
       });
     }, 60_000);
     return () => clearInterval(id);
   }, []);
+
+  // Show repeating tasks on whichever day is being viewed (today or later).
+  useEffect(() => {
+    if (!hydrated || selectedDate < todayKey()) return;
+    setState((s) => {
+      const next = materialize(s.dayTasks, s.recurring, [selectedDate]);
+      return next === s.dayTasks ? s : { ...s, dayTasks: next };
+    });
+  }, [hydrated, selectedDate, state.recurring]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -361,25 +461,101 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
       tasksFor: (date) =>
         state.dayTasks.filter((t) => t.date === date).sort((a, b) => a.start - b.start),
 
-      addDayTask: (task) => {
+      addDayTask: ({ repeatDays, ...task }) => {
         const title = task.title.trim();
         if (!title) return;
-        set((s) => ({
-          ...s,
-          dayTasks: [
-            ...s.dayTasks,
-            { ...task, title, id: uid('day'), date: task.date ?? selectedDate, done: false, label: task.label ?? 'Activity' },
-          ],
-        }));
+        const date = task.date ?? selectedDate;
+        set((s) => {
+          if (repeatDays?.length) {
+            const series: RecurringTask = {
+              id: uid('series'), title, start: task.start, duration: task.duration,
+              tone: task.tone, icon: task.icon, days: [...repeatDays].sort(), from: date, skip: [],
+            };
+            const recurring = [...s.recurring, series];
+            return { ...s, recurring, dayTasks: materialize(s.dayTasks, [series], [date, todayKey()]) };
+          }
+          return {
+            ...s,
+            dayTasks: [...s.dayTasks, { ...task, title, id: uid('day'), date, done: false, label: task.label ?? 'Activity' }],
+          };
+        });
       },
-      updateDayTask: (id, patch) =>
-        set((s) => ({
-          ...s,
-          dayTasks: s.dayTasks.map((t) =>
-            t.id === id ? { ...t, ...patch, title: (patch.title ?? t.title).trim() || t.title } : t,
-          ),
-        })),
-      removeDayTask: (id) => set((s) => ({ ...s, dayTasks: s.dayTasks.filter((t) => t.id !== id) })),
+      seriesFor: (task) => (task.seriesId ? state.recurring.find((r) => r.id === task.seriesId) : undefined),
+      updateDayTask: (id, { repeatDays, ...patch }, scope = 'one') =>
+        set((s) => {
+          const target = s.dayTasks.find((t) => t.id === id);
+          if (!target) return s;
+          const clean = { ...patch, ...(patch.title !== undefined ? { title: patch.title.trim() || target.title } : {}) };
+
+          // Turning a one-off into a repeating task.
+          if (!target.seriesId && repeatDays?.length) {
+            const series: RecurringTask = {
+              id: uid('series'), title: clean.title ?? target.title, start: clean.start ?? target.start,
+              duration: clean.duration ?? target.duration, tone: clean.tone ?? target.tone, icon: clean.icon ?? target.icon,
+              days: [...repeatDays].sort(), from: target.date, skip: [],
+            };
+            return {
+              ...s,
+              recurring: [...s.recurring, series],
+              dayTasks: s.dayTasks.map((t) => (t.id === id ? { ...t, ...clean, seriesId: series.id, label: 'Repeats' } : t)),
+            };
+          }
+
+          if (target.seriesId && scope === 'series') {
+            const sid = target.seriesId;
+            const stop = repeatDays !== undefined && repeatDays.length === 0;
+            const recurring = stop
+              ? s.recurring.filter((r) => r.id !== sid)
+              : s.recurring.map((r) =>
+                  r.id === sid ? { ...r, ...clean, ...(repeatDays ? { days: [...repeatDays].sort() } : {}) } : r,
+                );
+            // Update this and every future, unfinished instance; past history stays as it was.
+            let dayTasks = s.dayTasks
+              .filter((t) => !(stop && t.seriesId === sid && t.date > target.date && !t.done))
+              .filter((t) => !(repeatDays && t.seriesId === sid && t.date > target.date && !t.done)) // re-created below
+              .map((t) =>
+                t.seriesId === sid && t.date >= target.date && !t.done
+                  ? { ...t, ...clean, ...(stop ? { seriesId: undefined, label: 'Activity' } : {}) }
+                  : t,
+              );
+            if (!stop) dayTasks = materialize(dayTasks, recurring.filter((r) => r.id === sid), [selectedDate, todayKey()]);
+            return { ...s, recurring, dayTasks };
+          }
+
+          return { ...s, dayTasks: s.dayTasks.map((t) => (t.id === id ? { ...t, ...clean } : t)) };
+        }),
+      removeDayTask: (id, scope = 'one') =>
+        set((s) => {
+          const target = s.dayTasks.find((t) => t.id === id);
+          if (!target) return s;
+          if (!target.seriesId) return { ...s, dayTasks: s.dayTasks.filter((t) => t.id !== id) };
+          const sid = target.seriesId;
+          if (scope === 'series') {
+            return {
+              ...s,
+              recurring: s.recurring.filter((r) => r.id !== sid),
+              dayTasks: s.dayTasks.filter((t) => !(t.seriesId === sid && t.date >= target.date && !t.done)),
+            };
+          }
+          return {
+            ...s,
+            recurring: s.recurring.map((r) => (r.id === sid ? { ...r, skip: [...r.skip, target.date] } : r)),
+            dayTasks: s.dayTasks.filter((t) => t.id !== id),
+          };
+        }),
+      moveRolledOverToInbox: () =>
+        set((s) => {
+          const moving = s.dayTasks.filter((t) => t.rolledOver && !t.done);
+          return {
+            ...s,
+            rolledOverCount: 0,
+            dayTasks: s.dayTasks.filter((t) => !(t.rolledOver && !t.done)),
+            inboxTasks: [...moving.map((t) => ({ id: uid('inbox'), title: t.title, done: false })), ...s.inboxTasks],
+          };
+        }),
+      dismissWelcomeBack: () => set((s) => ({ ...s, awayDays: 0 })),
+      setReminderLead: (reminderLead) => set((s) => ({ ...s, reminderLead })),
+      setQuietHours: (quietStart, quietEnd) => set((s) => ({ ...s, quietStart, quietEnd })),
       toggleDayTask: (id) =>
         set((s) => ({
           ...s,

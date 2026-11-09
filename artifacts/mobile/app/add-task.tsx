@@ -4,7 +4,8 @@ import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TASK_TONES, formatMinutes, fromDateKey, useDayflow } from '@/context/DayflowContext';
+import { REPEAT_PRESETS, TASK_TONES, formatMinutes, fromDateKey, useDayflow } from '@/context/DayflowContext';
+import type { EditScope } from '@/context/DayflowContext';
 import type { TaskIcon, TaskTone } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
 import { ActivityIcon } from '@/components/ActivityIcon';
@@ -21,8 +22,11 @@ export default function AddTaskScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { addDayTask, updateDayTask, removeDayTask, dayTasks, selectedDate } = useDayflow();
+  const { addDayTask, updateDayTask, removeDayTask, dayTasks, selectedDate, seriesFor } = useDayflow();
   const existing = id ? dayTasks.find((t) => t.id === id) : undefined;
+  const series = existing ? seriesFor(existing) : undefined;
+  const initialDays = series?.days ?? [];
+  const [repeatDays, setRepeatDays] = useState<number[]>(initialDays);
   const [title, setTitle] = useState(existing?.title ?? '');
   const [start, setStart] = useState(existing?.start ?? nextQuarter());
   const [duration, setDuration] = useState(existing?.duration ?? 25);
@@ -34,24 +38,55 @@ export default function AddTaskScreen() {
 
   const shift = (delta: number) => setStart((s) => Math.max(0, Math.min(s + delta, 23 * 60 + 45)));
 
-  const save = () => {
-    if (!canSave) return;
-    if (existing) updateDayTask(existing.id, { title, start, duration, tone, icon });
-    else addDayTask({ title, start, duration, tone, icon, date });
+  const sameDays = (a: number[], b: number[]) => a.length === b.length && a.every((d) => b.includes(d));
+  const finish = () => {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
   };
 
+  /** For repeating tasks, ask whether a change applies to just this day or the whole series. */
+  const askScope = (verb: string, onPick: (scope: EditScope) => void) => {
+    if (Platform.OS === 'web') return onPick('series');
+    Alert.alert(`${verb} repeating activity`, 'Apply to just this day, or this and all upcoming days?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Only this day', onPress: () => onPick('one') },
+      { text: 'All upcoming', onPress: () => onPick('series') },
+    ]);
+  };
+
+  const save = () => {
+    if (!canSave) return;
+    const fields = { title, start, duration, tone, icon };
+    if (!existing) {
+      addDayTask({ ...fields, date, repeatDays });
+      return finish();
+    }
+    if (!series) {
+      updateDayTask(existing.id, { ...fields, repeatDays });
+      return finish();
+    }
+    // Repeat days changed → must apply to the series.
+    if (!sameDays(repeatDays, initialDays)) {
+      updateDayTask(existing.id, { ...fields, repeatDays }, 'series');
+      return finish();
+    }
+    askScope('Edit', (scope) => {
+      updateDayTask(existing.id, fields, scope);
+      finish();
+    });
+  };
+
   const remove = () => {
     if (!existing) return;
-    const doIt = () => {
-      removeDayTask(existing.id);
+    const doIt = (scope: EditScope = 'one') => {
+      removeDayTask(existing.id, scope);
       router.back();
     };
+    if (series) return askScope('Remove', doIt);
     if (Platform.OS === 'web') return doIt();
     Alert.alert('Remove this activity?', existing.title, [
       { text: 'Keep it', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: doIt },
+      { text: 'Remove', style: 'destructive', onPress: () => doIt() },
     ]);
   };
 
@@ -100,6 +135,43 @@ export default function AddTaskScreen() {
           <Pressable accessibilityLabel="15 minutes later" onPress={() => shift(15)} style={[styles.stepBtn, { backgroundColor: colors.secondary }]} testID="time-plus">
             <Feather name="plus" size={18} color={colors.secondaryForeground} />
           </Pressable>
+        </View>
+
+        <Text style={[styles.label, { color: colors.mutedForeground }]}>REPEAT</Text>
+        <View style={styles.wrap}>
+          {REPEAT_PRESETS.map((p) => {
+            const sel = sameDays(p.days, repeatDays);
+            return (
+              <Pressable
+                key={p.key}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: sel }}
+                onPress={() => setRepeatDays(p.days)}
+                testID={`repeat-${p.key}`}
+                style={[styles.chip, { backgroundColor: sel ? colors.primary : colors.card, borderColor: sel ? colors.primary : colors.border }]}
+              >
+                <Text style={[styles.chipText, { color: sel ? colors.primaryForeground : colors.foreground }]}>{p.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={styles.weekRow}>
+          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => {
+            const on = repeatDays.includes(i);
+            return (
+              <Pressable
+                key={i}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: on }}
+                accessibilityLabel={['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][i]}
+                onPress={() => setRepeatDays((cur) => (on ? cur.filter((x) => x !== i) : [...cur, i]))}
+                testID={`repeat-day-${i}`}
+                style={[styles.dayDot, { backgroundColor: on ? colors.secondary : colors.card, borderColor: on ? colors.primary : colors.border }]}
+              >
+                <Text style={{ color: on ? colors.secondaryForeground : colors.mutedForeground, fontWeight: '700' }}>{d}</Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         <Text style={[styles.label, { color: colors.mutedForeground }]}>DURATION</Text>
@@ -174,6 +246,8 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, borderWidth: 1 },
   chipText: { fontSize: 14, fontWeight: '600' },
+  weekRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
+  dayDot: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   swatch: { width: 44, height: 44, borderRadius: 22, borderWidth: 3 },
   remove: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 24, minHeight: 52, borderRadius: 18, borderWidth: 1 },
   iconCell: { width: 50, height: 50, borderRadius: 16, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },

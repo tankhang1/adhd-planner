@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Svg, { Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDayflow, formatMinutes, toDateKey, fromDateKey, todayKey } from '@/context/DayflowContext';
+import { useDayflow, useVisualMode, formatMinutes, toDateKey, fromDateKey, todayKey } from '@/context/DayflowContext';
 import { useCalendarEvents } from '@/services/calendar';
 import type { CalendarEvent } from '@/services/calendar';
 import type { DayTask } from '@/context/DayflowContext';
@@ -51,10 +51,10 @@ function WeekStrip({ today, selected, onSelect, busy }: { today: Date; selected:
             testID={`week-day-${i}`}
             style={[styles.weekDay, { backgroundColor: isSel ? colors.primary : 'transparent' }]}
           >
-            <Text style={[styles.weekDow, { color: isSel ? colors.primaryForeground : colors.mutedForeground }]}>
+            <Text maxFontSizeMultiplier={1.3} style={[styles.weekDow, { color: isSel ? colors.primaryForeground : colors.mutedForeground }]}>
               {d.toLocaleDateString('en-US', { weekday: 'narrow' })}
             </Text>
-            <Text style={[styles.weekNum, { color: isSel ? colors.primaryForeground : colors.foreground }]}>
+            <Text maxFontSizeMultiplier={1.3} style={[styles.weekNum, { color: isSel ? colors.primaryForeground : colors.foreground }]}>
               {d.getDate()}
             </Text>
             <View
@@ -102,6 +102,7 @@ function Ring({ progress, color, track, size = 64 }: { progress: number; color: 
 
 function NowCard({ tasks, now }: { tasks: DayTask[]; now: number }) {
   const colors = useColors();
+  const quiet = useVisualMode() === 'focused';
   const current = tasks.find((t) => now >= t.start && now < t.start + t.duration);
   const next = tasks.find((t) => t.start > now && !t.done);
   const task = current ?? next;
@@ -134,10 +135,15 @@ function NowCard({ tasks, now }: { tasks: DayTask[]; now: number }) {
       accessibilityLabel={`${isNow ? 'Now' : 'Up next'}: ${task.title}. Open focus timer.`}
       onPress={() => router.push({ pathname: '/focus', params: { taskId: task.id } })}
       testID="now-card"
-      style={({ pressed }) => [styles.nowCard, { backgroundColor: colors[task.tone], opacity: pressed ? 0.9 : 1 }]}
+      style={({ pressed }) => [
+        styles.nowCard,
+        quiet
+          ? { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.9 : 1 }
+          : { backgroundColor: colors[task.tone], opacity: pressed ? 0.9 : 1 },
+      ]}
     >
       <View style={styles.nowRing}>
-        <Ring progress={progress} color={ink} track="rgba(255,255,255,0.7)" />
+        <Ring progress={progress} color={ink} track={quiet ? colors.muted : 'rgba(255,255,255,0.7)'} />
         <View style={styles.nowRingIcon}>
           <ActivityIcon name={task.icon} size={26} color={ink} />
         </View>
@@ -163,7 +169,8 @@ function NowCard({ tasks, now }: { tasks: DayTask[]; now: number }) {
 function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; onToggle: () => void }) {
   const colors = useColors();
   const ink = inkFor(colors, task.tone);
-  const height = Math.max(MIN_BLOCK, task.duration * PX_PER_MIN);
+  const quiet = useVisualMode() === 'focused';
+  const height = quiet ? MIN_BLOCK - 8 : Math.max(MIN_BLOCK, task.duration * PX_PER_MIN);
   const active = now >= task.start && now < task.start + task.duration;
   const past = now >= task.start + task.duration;
   const fill = active ? (now - task.start) / task.duration : 0;
@@ -171,7 +178,7 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
   return (
     <View style={styles.row}>
       <View style={styles.timeCol}>
-        <Text style={[styles.timeText, { color: active ? ink : colors.mutedForeground }]}>
+        <Text maxFontSizeMultiplier={1.3} style={[styles.timeText, { color: active ? ink : colors.mutedForeground }]}>
           {formatMinutes(task.start)}
         </Text>
       </View>
@@ -190,16 +197,18 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
           styles.block,
           {
             minHeight: height,
-            backgroundColor: colors[task.tone],
+            backgroundColor: quiet ? colors.card : colors[task.tone],
             opacity: pressed ? 0.85 : task.done || past ? 0.6 : 1,
-            borderColor: active ? ink : 'transparent',
+            borderColor: active ? ink : quiet ? colors.border : 'transparent',
+            borderWidth: quiet && !active ? 1 : 2,
           },
         ]}
       >
+        {quiet ? <View style={[styles.quietStripe, { backgroundColor: ink }]} /> : null}
         {active ? (
           <View style={[styles.blockFill, { height: `${fill * 100}%`, backgroundColor: ink }]} />
         ) : null}
-        <View style={[styles.blockIcon, { backgroundColor: colors.card }]}>
+        <View style={[styles.blockIcon, { backgroundColor: quiet ? colors[task.tone] : colors.card }]}>
           <ActivityIcon name={task.icon} size={21} color={ink} />
         </View>
         <View style={styles.blockCopy}>
@@ -214,6 +223,8 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
           ) : null}
           <Text style={[styles.blockMeta, { color: colors.mutedForeground }]}>
             {formatMinutes(task.start)} – {formatMinutes(task.start + task.duration)} · {task.duration} min
+            {task.seriesId ? '  ' : ''}
+            {task.seriesId ? <Feather name="repeat" size={11} color={colors.mutedForeground} /> : null}
           </Text>
         </View>
         <Pressable
@@ -240,7 +251,7 @@ function CalendarBlock({ event }: { event: CalendarEvent }) {
   return (
     <View style={styles.row}>
       <View style={styles.timeCol}>
-        <Text style={[styles.timeText, { color: colors.mutedForeground }]}>{formatMinutes(event.start)}</Text>
+        <Text maxFontSizeMultiplier={1.3} style={[styles.timeText, { color: colors.mutedForeground }]}>{formatMinutes(event.start)}</Text>
       </View>
       <View
         accessibilityLabel={`Calendar event ${event.title}, ${formatMinutes(event.start)}`}
@@ -258,12 +269,90 @@ function CalendarBlock({ event }: { event: CalendarEvent }) {
   );
 }
 
+function DaySummary({ tasks, past }: { tasks: DayTask[]; past: boolean }) {
+  const colors = useColors();
+  const done = tasks.filter((t) => t.done);
+  const minutes = done.reduce((sum, t) => sum + t.duration, 0);
+  const headline = done.length
+    ? `${done.length} ${done.length === 1 ? 'thing' : 'things'} done${past ? '' : ' today'}`
+    : past ? 'A rest day' : 'Nothing ticked off yet — that’s okay';
+  return (
+    <View style={[styles.summary, { backgroundColor: colors.sage }]} accessibilityRole="summary">
+      <View style={styles.summaryTop}>
+        <View style={[styles.summaryIcon, { backgroundColor: colors.card }]}>
+          <Feather name={done.length ? 'award' : 'feather'} size={20} color={colors.sageInk} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.summaryTitle, { color: colors.foreground }]}>{headline}</Text>
+          <Text style={[styles.summaryMeta, { color: colors.mutedForeground }]}>
+            {done.length
+              ? `${Math.floor(minutes / 60) ? `${Math.floor(minutes / 60)}h ` : ''}${minutes % 60}m of showing up. Every bit counts.`
+              : past ? 'Rest is part of the plan too.' : 'Tick one small thing when you’re ready.'}
+          </Text>
+        </View>
+      </View>
+      {done.length ? (
+        <View style={styles.summaryIcons}>
+          {done.slice(0, 10).map((t) => (
+            <View key={t.id} style={[styles.summaryDot, { backgroundColor: colors[t.tone] }]}>
+              <ActivityIcon name={t.icon} size={15} color={colors[`${t.tone}Ink` as const]} />
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function WelcomeBack({ days, moved, onKeep, onToInbox }: { days: number; moved: number; onKeep: () => void; onToInbox: () => void }) {
+  const colors = useColors();
+  return (
+    <View style={[styles.welcome, { backgroundColor: colors.lilac }]}>
+      <View style={styles.summaryTop}>
+        <View style={[styles.summaryIcon, { backgroundColor: colors.card }]}>
+          <Feather name="sunrise" size={20} color={colors.lilacInk} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.summaryTitle, { color: colors.foreground }]}>Welcome back</Text>
+          <Text style={[styles.summaryMeta, { color: colors.mutedForeground }]}>
+            {days > 1 ? `It’s been ${days} days. ` : ''}
+            {moved
+              ? `${moved} unfinished ${moved === 1 ? 'thing is' : 'things are'} waiting here. Want a lighter start?`
+              : 'Let’s just pick one small thing for today.'}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.welcomeActions}>
+        {moved ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={onToInbox}
+            testID="welcome-to-inbox"
+            style={[styles.welcomeBtn, { backgroundColor: colors.lilacInk }]}
+          >
+            <Feather name="inbox" size={15} color="#FFFFFF" />
+            <Text style={[styles.welcomeBtnText, { color: '#FFFFFF' }]}>Move them to Inbox</Text>
+          </Pressable>
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          onPress={onKeep}
+          testID="welcome-keep"
+          style={[styles.welcomeBtn, { backgroundColor: colors.card }]}
+        >
+          <Text style={[styles.welcomeBtnText, { color: colors.foreground }]}>{moved ? 'Keep my plan' : 'Okay'}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 function NowLine({ label }: { label: string }) {
   const colors = useColors();
   return (
     <View style={styles.nowLineRow} accessibilityLabel={`Current time ${label}`}>
       <View style={[styles.nowPill, { backgroundColor: colors.accent }]}>
-        <Text style={styles.nowPillText}>{label}</Text>
+        <Text maxFontSizeMultiplier={1.3} style={styles.nowPillText}>{label}</Text>
       </View>
       <View style={[styles.nowLine, { backgroundColor: colors.accent }]} />
     </View>
@@ -292,6 +381,7 @@ export default function TodayScreen() {
   const {
     dayTasks, toggleDayTask, tasksFor, selectedDate, setSelectedDate,
     rolledOverCount, dismissRolloverBanner, calendarSyncEnabled,
+    awayDays, dismissWelcomeBack, moveRolledOverToInbox,
   } = useDayflow();
   const [clock, setClock] = useState(() => new Date());
 
@@ -343,7 +433,7 @@ export default function TodayScreen() {
           </View>
           <View style={[styles.progressChip, { backgroundColor: colors.secondary }]}>
             <Feather name="check-circle" size={14} color={colors.secondaryForeground} />
-            <Text style={[styles.progressChipText, { color: colors.secondaryForeground }]}>
+            <Text maxFontSizeMultiplier={1.3} style={[styles.progressChipText, { color: colors.secondaryForeground }]}>
               {completed}/{sorted.length}
             </Text>
           </View>
@@ -351,7 +441,22 @@ export default function TodayScreen() {
 
         <WeekStrip today={clock} selected={selectedDate} onSelect={setSelectedDate} busy={busy} />
 
-        {rolledOverCount > 0 && isToday ? (
+        {isToday && awayDays >= 2 ? (
+          <WelcomeBack
+            days={awayDays + 1}
+            moved={rolledOverCount}
+            onKeep={() => {
+              dismissWelcomeBack();
+              dismissRolloverBanner();
+            }}
+            onToInbox={() => {
+              moveRolledOverToInbox();
+              dismissWelcomeBack();
+            }}
+          />
+        ) : null}
+
+        {rolledOverCount > 0 && isToday && awayDays < 2 ? (
           <View style={[styles.banner, { backgroundColor: colors.lemon }]}>
             <Feather name="sunrise" size={18} color={colors.lemonInk} />
             <Text style={[styles.bannerText, { color: colors.foreground }]}>
@@ -364,6 +469,10 @@ export default function TodayScreen() {
         ) : null}
 
         {isToday ? <NowCard tasks={sorted} now={now} /> : null}
+
+        {sorted.length && (selectedDate < todayKey() || (isToday && (hour >= 18 || sorted.every((t) => t.done)))) ? (
+          <DaySummary tasks={sorted} past={selectedDate < todayKey()} />
+        ) : null}
 
         {allDay.length ? (
           <View style={styles.allDayRow}>
@@ -494,6 +603,18 @@ const styles = StyleSheet.create({
   allDayText: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
   calBlock: { borderWidth: 1, borderStyle: 'dashed', paddingLeft: 18 },
   calStripe: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 },
+  quietStripe: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 },
+  summary: { padding: 16, borderRadius: 24, gap: 12 },
+  summaryTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  summaryIcon: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  summaryTitle: { fontSize: 17, fontWeight: '800', letterSpacing: -0.2 },
+  summaryMeta: { fontSize: 13, lineHeight: 18, marginTop: 2 },
+  summaryIcons: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  summaryDot: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  welcome: { padding: 16, borderRadius: 24, gap: 14 },
+  welcomeActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  welcomeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, minHeight: 44, borderRadius: 22 },
+  welcomeBtnText: { fontSize: 14, fontWeight: '700' },
   empty: { alignItems: 'center', gap: 8, padding: 28, borderRadius: 24, borderWidth: 1 },
   fab: {
     position: 'absolute',
