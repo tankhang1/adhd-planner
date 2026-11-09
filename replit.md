@@ -1,6 +1,6 @@
-# [Project name]
+# Dayflow
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A visual day-planning mobile app prototype for adults with ADHD, designed around gentle routines, visible time, and low-pressure next steps.
 
 ## Run & Operate
 
@@ -22,15 +22,20 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/mobile` — Expo app and UI prototype
+- `artifacts/mobile/context/DayflowContext.tsx` — locally saved prototype tasks, routines, and appearance preference
+- `artifacts/mobile/constants/colors.ts` — Dayflow light, focused, and dark palette tokens
+- `lib/api-spec/openapi.yaml` — shared API contract; Dayflow currently does not use it
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The current delivery is a UI-only mobile prototype; do not add backend services or third-party integrations unless requested.
+- Prototype tasks, routines, and appearance are stored on-device so the interface remains usable without an account or network.
+- Dayflow uses its own visual identity and product copy; it may use common planner patterns but must not reproduce another app's branding or exact screens.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Dayflow presents a visual daily plan, a focus countdown, step-by-step routines, a task inbox, and an appearance/pricing preview. It is designed to be supportive rather than punitive: no streaks or overdue warnings.
 
 ## User preferences
 
@@ -38,7 +43,7 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The focus timer, planner content, and pricing display are a frontend prototype; they do not connect to calendars, AI services, widgets, subscriptions, or notifications.
 
 ## Pointers
 

@@ -1,0 +1,1 @@
+- [Expo web font gate](expo-web-font-gate.md) — when fonts are gated at the root, let web render with a fallback while keeping the native splash gate.
