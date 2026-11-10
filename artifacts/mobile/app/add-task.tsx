@@ -105,7 +105,7 @@ export default function AddTaskScreen() {
   };
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background, paddingBottom: insets.bottom + 16 }]}>
+    <View style={[styles.screen, { backgroundColor: colors.background, paddingTop: Platform.OS === 'android' ? insets.top : 0, paddingBottom: insets.bottom + 16 }]}>
       <View style={styles.top}>
         <Pressable accessibilityRole="button" accessibilityLabel={tr('common.cancel')} onPress={() => goBack()} hitSlop={12} testID="cancel-add">
           <Text style={[styles.topBtn, { color: colors.mutedForeground }]}>{tr('common.cancel')}</Text>

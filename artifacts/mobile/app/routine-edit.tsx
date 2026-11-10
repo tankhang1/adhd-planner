@@ -67,7 +67,7 @@ export default function RoutineEditScreen() {
   };
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background, paddingBottom: insets.bottom }]}>
+    <View style={[styles.screen, { backgroundColor: colors.background, paddingTop: Platform.OS === 'android' ? insets.top : 0, paddingBottom: insets.bottom }]}>
       <View style={styles.top}>
         <Pressable accessibilityRole="button" onPress={() => goBack()} hitSlop={12} testID="routine-cancel">
           <Text style={[styles.topBtn, { color: colors.mutedForeground }]}>{tr('common.cancel')}</Text>

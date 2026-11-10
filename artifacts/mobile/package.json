@@ -5,6 +5,12 @@
   "main": "index.ts",
   "scripts": {
     "dev": "expo start",
+    "prebuild": "expo prebuild",
+    "prebuild:clean": "expo prebuild --clean",
+    "run:ios": "expo run:ios",
+    "run:ios:device": "expo run:ios --device",
+    "run:android": "expo run:android",
+    "run:android:device": "expo run:android --device",
     "build": "node scripts/build.js",
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
