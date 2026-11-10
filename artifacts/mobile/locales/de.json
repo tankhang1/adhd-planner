@@ -1,5 +1,7 @@
 {
-  "CFBundleDisplayName": "Dayflow",
-  "NSCalendarsUsageDescription": "Dayflow zeigt deine Kalendertermine im Tagesplan, damit du deinen ganzen Tag im Blick hast.",
-  "NSCalendarsFullAccessUsageDescription": "Dayflow zeigt deine Kalendertermine im Tagesplan, damit du deinen ganzen Tag im Blick hast."
+  "ios": {
+    "CFBundleDisplayName": "Dayflow",
+    "NSCalendarsUsageDescription": "Dayflow zeigt deine Kalendertermine im Tagesplan, damit du deinen ganzen Tag im Blick hast.",
+    "NSCalendarsFullAccessUsageDescription": "Dayflow zeigt deine Kalendertermine im Tagesplan, damit du deinen ganzen Tag im Blick hast."
+  }
 }

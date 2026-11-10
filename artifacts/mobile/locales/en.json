@@ -1,5 +1,7 @@
 {
-  "CFBundleDisplayName": "Dayflow",
-  "NSCalendarsUsageDescription": "Dayflow shows your calendar events on your timeline so you can see your whole day.",
-  "NSCalendarsFullAccessUsageDescription": "Dayflow shows your calendar events on your timeline so you can see your whole day."
+  "ios": {
+    "CFBundleDisplayName": "Dayflow",
+    "NSCalendarsUsageDescription": "Dayflow shows your calendar events on your timeline so you can see your whole day.",
+    "NSCalendarsFullAccessUsageDescription": "Dayflow shows your calendar events on your timeline so you can see your whole day."
+  }
 }

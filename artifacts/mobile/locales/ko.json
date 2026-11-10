@@ -1,5 +1,7 @@
 {
-  "CFBundleDisplayName": "Dayflow",
-  "NSCalendarsUsageDescription": "Dayflow가 캘린더 일정을 타임라인에 보여 줘서 하루 전체를 한눈에 볼 수 있어요.",
-  "NSCalendarsFullAccessUsageDescription": "Dayflow가 캘린더 일정을 타임라인에 보여 줘서 하루 전체를 한눈에 볼 수 있어요."
+  "ios": {
+    "CFBundleDisplayName": "Dayflow",
+    "NSCalendarsUsageDescription": "Dayflow가 캘린더 일정을 타임라인에 보여 줘서 하루 전체를 한눈에 볼 수 있어요.",
+    "NSCalendarsFullAccessUsageDescription": "Dayflow가 캘린더 일정을 타임라인에 보여 줘서 하루 전체를 한눈에 볼 수 있어요."
+  }
 }
