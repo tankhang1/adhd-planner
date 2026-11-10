@@ -25,6 +25,10 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+// Dev-only screenshot helper. The `if (__DEV__)` lets Metro strip it (and its demo data) from release bundles.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const DevScene: React.ComponentType | null = __DEV__ ? require('@/dev/DevScene').DevScene : null;
+
 const minutesNow = () => {
   const d = new Date();
   return d.getHours() * 60 + d.getMinutes();
@@ -93,6 +97,7 @@ function RootLayoutNav() {
   return (
     <>
     <AppEffects />
+    {DevScene ? <DevScene /> : null}
     <Stack screenOptions={{ headerBackTitle: 'Back' }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen

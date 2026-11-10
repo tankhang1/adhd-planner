@@ -52,3 +52,7 @@ Thumbs.db
 
 .cache/
 .local/
+
+# Screenshot build temp
+screenshots/.build/
+__pycache__/

@@ -174,7 +174,7 @@ export interface Profile {
   struggle: Struggle;
 }
 
-interface DayflowState {
+export interface DayflowState {
   dayTasks: DayTask[];
   inboxTasks: InboxTask[];
   routines: Routine[];
@@ -242,6 +242,8 @@ interface DayflowContextValue extends DayflowState {
   removeTreat: (id: string) => void;
   markWeekReviewed: (monday: string) => void;
   setLanguage: (language: LanguageSetting) => void;
+  /** Dev-only: merge a partial state (used by the screenshot scene loader). */
+  devPatch: (patch: Partial<DayflowState>) => void;
   /** Add several inbox items at once (quick capture imports) */
   addInboxTasks: (titles: string[]) => void;
   markEnergyHandled: (date: string) => void;
@@ -769,6 +771,11 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
       },
       removeTreat: (id) => set((s) => ({ ...s, treats: s.treats.filter((t) => t.id !== id) })),
       markWeekReviewed: (monday) => set((s) => ({ ...s, lastReviewWeek: monday })),
+      devPatch: (patch) => {
+        if (!__DEV__) return;
+        if (patch.language) applyLanguage(patch.language);
+        set((s) => ({ ...s, ...patch }));
+      },
       setLanguage: (language) => {
         // Switch i18n *before* the state update so every screen re-renders in the new language
         // (inactive tabs are frozen and won't get a second render).

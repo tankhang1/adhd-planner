@@ -27,7 +27,7 @@ export default function FocusScreen() {
   const colors = useColors();
   useT();
   const insets = useSafeAreaInsets();
-  const { taskId, tiny } = useLocalSearchParams<{ taskId?: string; tiny?: string }>();
+  const { taskId, tiny, left } = useLocalSearchParams<{ taskId?: string; tiny?: string; left?: string }>();
   const { dayTasks, toggleDayTask, extendTask, logTime, treats, addDayTask, nextFreeStart } = useDayflow();
   const [treat, setTreat] = useState<Treat | null>(null);
   const task = dayTasks.find((t) => t.id === taskId);
@@ -35,10 +35,12 @@ export default function FocusScreen() {
   const tone = task?.tone ?? 'lilac';
   const ink = colors[`${tone}Ink` as const];
 
-  const [phase, setPhase] = useState<Phase>(tiny === '1' ? 'tiny' : 'idle');
+  // Dev-only (screenshot scenes): resume mid-session. Ignored in release builds.
+  const resume = __DEV__ && left ? Math.min(fullSeconds, Math.max(1, Number(left))) : 0;
+  const [phase, setPhase] = useState<Phase>(tiny === '1' ? 'tiny' : resume ? 'full' : 'idle');
   const [total, setTotal] = useState(tiny === '1' ? TINY_SECONDS : fullSeconds);
-  const [seconds, setSeconds] = useState(total);
-  const [running, setRunning] = useState(tiny === '1');
+  const [seconds, setSeconds] = useState(resume || total);
+  const [running, setRunning] = useState(tiny === '1' || !!resume);
   /** Seconds actually spent working on this task in this session (for time learning). */
   const [worked, setWorked] = useState(0);
 

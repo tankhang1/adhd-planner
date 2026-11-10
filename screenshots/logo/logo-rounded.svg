@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8B7CF6"/>
+      <stop offset="1" stop-color="#6C5CE7"/>
+    </linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#2A1F7A" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <!-- time disc -->
+  <g filter="url(#sh)">
+    <circle cx="420" cy="512" r="250" fill="#FFFFFF"/>
+  </g>
+  <!-- remaining time wedge (about 2/3 left) -->
+  <path d="M420 512 L420 302 A210 210 0 1 1 238.1 617 Z" fill="#FF8A65"/>
+  <circle cx="420" cy="512" r="30" fill="#FFFFFF"/>
+  <!-- timeline blocks -->
+  <g filter="url(#sh)">
+    <rect x="712" y="292" width="170" height="116" rx="40" fill="#FFF2C2"/>
+    <rect x="712" y="454" width="170" height="116" rx="40" fill="#D9F5E6"/>
+    <rect x="712" y="616" width="170" height="116" rx="40" fill="#D8ECFF"/>
+  </g>
+</svg>

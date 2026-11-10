@@ -15,6 +15,7 @@ import { Celebration } from '@/components/Celebration';
 import { WeeklyReview } from '@/components/WeeklyReview';
 import { weekToReview } from '@/services/weekly';
 import { collectNudges } from '@/services/nudges';
+import { devEvents } from '@/lib/devEvents';
 import type { CalendarEvent } from '@/services/calendar';
 import type { DayTask } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
@@ -513,6 +514,7 @@ export default function TodayScreen() {
   const now = minutesNow(clock);
   const isToday = selectedDate === todayKey();
   const [checkInKey, setCheckInKey] = useState(0);
+  useEffect(() => devEvents.on('openCheckIn', () => setCheckInKey((k) => k + 1)), []);
   const [energyOpen, setEnergyOpen] = useState(false);
   const [welcomeClosed, setWelcomeClosed] = useState(false);
   // Most recent block that ended in the last 45 min without being ticked off.
