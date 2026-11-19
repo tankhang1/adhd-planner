@@ -367,22 +367,41 @@ function daysBetween(a: string, b: string) {
   return Math.round((fromDateKey(b).getTime() - fromDateKey(a).getTime()) / 86_400_000);
 }
 
-function rollOver(tasks: DayTask[], today: string): [DayTask[], number] {
-  let moved = 0;
+/**
+ * New day, clean slate. Today only shows what belongs to today: repeating habits
+ * and things scheduled for this date. Unfinished one-off tasks from earlier days
+ * don't pile onto today; they go to the Inbox so nothing is lost.
+ */
+function rollOver(tasks: DayTask[], today: string): [DayTask[], DayTask[]] {
+  const toInbox: DayTask[] = [];
   const next = tasks
     // keep finished tasks as gentle history, but only for a while
     .filter((t) => !(t.date < today && t.done && daysBetween(t.date, today) > HISTORY_DAYS))
     // a missed repeat instance doesn't follow you — tomorrow brings a fresh one
     .filter((t) => !(t.date < today && !t.done && t.seriesId))
-    .map((t) => (t.parked && t.date < today ? { ...t, parked: false } : t))
-    .map((t) => {
+    .filter((t) => {
       if (t.date < today && !t.done) {
-        moved += 1;
-        return { ...t, date: today, rolledOver: true, moved: (t.moved ?? 0) + 1 };
+        toInbox.push(t);
+        return false;
       }
-      return t;
-    });
-  return [next, moved];
+      return true;
+    })
+    .map((t) => (t.rolledOver ? { ...t, rolledOver: false } : t));
+  return [next, toInbox];
+}
+
+/** Adds leftover tasks to the Inbox (skipping titles already there). */
+function withLeftovers(inbox: InboxTask[], leftovers: DayTask[]): InboxTask[] {
+  if (!leftovers.length) return inbox;
+  const have = new Set(inbox.filter((i) => !i.done).map((i) => i.title.trim().toLowerCase()));
+  const add: InboxTask[] = [];
+  for (const t of leftovers) {
+    const key = t.title.trim().toLowerCase();
+    if (have.has(key)) continue;
+    have.add(key);
+    add.push({ id: uid('inbox'), title: t.title, done: false });
+  }
+  return [...add, ...inbox];
 }
 
 /** Minute of the day to leave the house, and to start getting ready. */
@@ -526,7 +545,8 @@ function hydrateState(): DayflowState {
   // Apply the saved language before the first render.
   applyLanguage(merged.language ?? 'system');
   Object.assign(merged, relocalizeSeeds(merged)); // e.g. phone language changed since last launch
-  const [tasks, moved] = rollOver(normalizeDayTasks(merged.dayTasks, today), today);
+  const [tasks, leftovers] = rollOver(normalizeDayTasks(merged.dayTasks, today), today);
+  merged.inboxTasks = withLeftovers(Array.isArray(merged.inboxTasks) ? merged.inboxTasks : [], leftovers);
   const recurring = Array.isArray(merged.recurring) ? merged.recurring : [];
   if (!Array.isArray(merged.timeLog)) merged.timeLog = [];
   if (!Array.isArray(merged.energyLog)) merged.energyLog = [];
@@ -542,7 +562,7 @@ function hydrateState(): DayflowState {
     awayDays: away || merged.awayDays || 0,
     dayTasks: materialize(tasks, recurring, [today]),
     routines: normalizeRoutines(merged.routines) ?? current.routines,
-    rolledOverCount: moved || merged.rolledOverCount,
+    rolledOverCount: leftovers.length || merged.rolledOverCount,
   };
 }
 
@@ -563,11 +583,12 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
       lastDay = now;
       setSelectedDate(now);
       setState((s) => {
-        const [tasks, moved] = rollOver(s.dayTasks, now);
+        const [tasks, leftovers] = rollOver(s.dayTasks, now);
         return {
           ...s,
           dayTasks: materialize(tasks, s.recurring, [now]),
-          rolledOverCount: moved,
+          inboxTasks: withLeftovers(s.inboxTasks, leftovers),
+          rolledOverCount: leftovers.length,
           lastOpenDate: now,
           showUpDays: s.showUpDays.includes(now) ? s.showUpDays : [...s.showUpDays, now].slice(-400),
         };

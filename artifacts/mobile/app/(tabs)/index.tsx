@@ -14,7 +14,8 @@ import { EnergyCheckIn } from '@/components/EnergyCheckIn';
 import { BuddyDialog, DialogButton } from '@/components/BuddyDialog';
 import { CloudBuddy } from '@/components/CloudBuddy';
 import type { BuddyMood } from '@/components/CloudBuddy';
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Extrapolation, FadeOut, LinearTransition, interpolate, useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import type { SharedValue } from 'react-native-reanimated';
 import { Celebration } from '@/components/Celebration';
 import { WeeklyReview } from '@/components/WeeklyReview';
 import { weekToReview } from '@/services/weekly';
@@ -298,6 +299,29 @@ function NowCard({ tasks, now }: { tasks: DayTask[]; now: number }) {
 
 /* ------------------------------ Timeline -------------------------------- */
 
+/** Red action behind a block: grows and fades in as you swipe, instead of popping in. */
+function DeleteAction({ progress, onPress, testID }: { progress: SharedValue<number>; onPress: () => void; testID: string }) {
+  const colors = useColors();
+  const style = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.4, 1], [0, 0.6, 1], Extrapolation.CLAMP),
+    transform: [{ scale: interpolate(progress.value, [0, 1], [0.7, 1], Extrapolation.CLAMP) }],
+  }));
+  return (
+    <Animated.View style={[styles.deleteWrap, style]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('today.delete')}
+        onPress={onPress}
+        testID={testID}
+        style={({ pressed }) => [styles.deleteAction, { backgroundColor: colors.destructive, opacity: pressed ? 0.85 : 1 }]}
+      >
+        <Feather name="trash-2" size={20} color="#FFFFFF" />
+        <Text style={styles.deleteText}>{t('today.delete')}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; onToggle: () => void }) {
   const colors = useColors();
   const { removeDayTask } = useDayflow();
@@ -317,6 +341,7 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
       ]);
       return;
     }
+    swipeRef.current?.close();
     removeDayTask(task.id, 'one');
   };
   const height = quiet ? MIN_BLOCK - 8 : Math.max(MIN_BLOCK, task.duration * PX_PER_MIN);
@@ -337,18 +362,7 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
         friction={1.6}
         rightThreshold={60}
         overshootRight={false}
-        renderRightActions={() => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('today.delete')}
-            onPress={remove}
-            testID={`delete-${task.id}`}
-            style={[styles.deleteAction, { backgroundColor: colors.destructive }]}
-          >
-            <Feather name="trash-2" size={20} color="#FFFFFF" />
-            <Text style={styles.deleteText}>{t('today.delete')}</Text>
-          </Pressable>
-        )}
+        renderRightActions={(progress) => <DeleteAction progress={progress} onPress={remove} testID={`delete-${task.id}`} />}
       >
       {/* Opaque backing so faded (past/done) blocks never show the Delete action through them. */}
       <View style={[styles.swipeBacking, { backgroundColor: colors.background }]}>
@@ -644,15 +658,32 @@ export default function TodayScreen() {
   const colors = useColors();
   useT(); // re-render when the language changes
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const web = Platform.OS === 'web';
   const {
     dayTasks, toggleDayTask, tasksFor, selectedDate, setSelectedDate,
     rolledOverCount, dismissRolloverBanner, calendarSyncEnabled,
     awayDays, dismissWelcomeBack, moveRolledOverToInbox,
-    isSurvivalDay, energyFor, startSurvivalDay, lightenDay, showUpDays,
+    isSurvivalDay, energyFor, startSurvivalDay, lightenDay, showUpDays, removeDayTask,
   } = useDayflow();
   const { isPro, showPaywall } = usePro();
   const [overwhelmOpen, setOverwhelmOpen] = useState(false);
+  /** Clear every activity on the selected day. Repeating habits skip just this day and return tomorrow. */
+  const clearDay = () => {
+    const items = tasksFor(selectedDate);
+    if (!items.length) return;
+    Alert.alert(t('today.clearTitle'), t(items.some((x) => x.seriesId) ? 'today.clearBodyHabits' : 'today.clearBody', { count: items.length }), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('today.clearConfirm'),
+        style: 'destructive',
+        onPress: () => {
+          items.forEach((x) => removeDayTask(x.id, 'one'));
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        },
+      },
+    ]);
+  };
   const [clock, setClock] = useState(() => new Date());
 
   useEffect(() => {
@@ -894,6 +925,19 @@ export default function TodayScreen() {
         <View style={styles.sectionBlock}>
           <View style={styles.sectionRow}>
             <Text style={[styles.section, { color: colors.foreground }]}>{t('today.yourDay')}</Text>
+            {sorted.length && selectedDate >= todayKey() ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('today.clearTitle')}
+                onPress={clearDay}
+                hitSlop={8}
+                testID="clear-day"
+                style={({ pressed }) => [styles.clearBtn, { backgroundColor: colors.muted, opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Feather name="trash-2" size={13} color={colors.mutedForeground} />
+                <Text style={[styles.clearBtnText, { color: colors.mutedForeground }]}>{t('today.clear')}</Text>
+              </Pressable>
+            ) : null}
             {sorted.length ? (
               <View style={[styles.progressChip, { backgroundColor: colors.secondary }]} accessibilityLabel={`${completed}/${sorted.length}`}>
                 <Feather name="check-circle" size={13} color={colors.secondaryForeground} />
@@ -914,7 +958,7 @@ export default function TodayScreen() {
             const gap = prev ? startOf(it) - endOf(prev) : 0;
             const key = it.kind === 'task' ? it.task.id : it.event.id;
             return (
-              <React.Fragment key={key}>
+              <Animated.View key={key} layout={reduceMotion ? undefined : LinearTransition.springify().damping(20).stiffness(180)} exiting={reduceMotion ? undefined : FadeOut.duration(180)}>
                 {i > 0 ? <Gap minutes={gap} /> : null}
                 {i === nowIndex ? <NowLine label={nowLabel} /> : null}
                 {it.kind === 'task' ? (
@@ -930,7 +974,7 @@ export default function TodayScreen() {
                 ) : (
                   <CalendarBlock event={it.event} />
                 )}
-              </React.Fragment>
+              </Animated.View>
             );
           })}
           {items.length && nowIndex === -1 ? <NowLine label={nowLabel} /> : null}
@@ -972,17 +1016,17 @@ export default function TodayScreen() {
       >
         {rolledOverCount ? (
           <DialogButton
-            label={t('today.welcomeToInbox')}
+            label={t('today.welcomeOpenInbox')}
             variant="secondary"
-            testID="welcome-to-inbox"
+            testID="welcome-open-inbox"
             icon={<Feather name="inbox" size={16} color={colors.foreground} />}
             onPress={() => {
-              moveRolledOverToInbox();
               closeWelcome();
+              router.push('/inbox');
             }}
           />
         ) : null}
-        <DialogButton label={rolledOverCount ? t('today.welcomeKeep') : t('common.letsGo')} testID="welcome-keep" onPress={closeWelcome} />
+        <DialogButton label={t('common.letsGo')} testID="welcome-keep" onPress={closeWelcome} />
       </BuddyDialog>
 
       <BuddyDialog
@@ -1119,7 +1163,8 @@ const styles = StyleSheet.create({
   done: { textDecorationLine: 'line-through' },
   swipe: { flex: 1, borderRadius: 22 },
   swipeBacking: { flex: 1, borderRadius: 22 },
-  deleteAction: { width: 92, marginLeft: 8, borderRadius: 22, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  deleteWrap: { width: 92, marginLeft: 8 },
+  deleteAction: { flex: 1, borderRadius: 22, alignItems: 'center', justifyContent: 'center', gap: 4 },
   deleteText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
   check: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   nowLineRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
@@ -1169,6 +1214,8 @@ const styles = StyleSheet.create({
   helperIcon: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   helperTitle: { fontSize: 15, fontWeight: '800' },
   helperSub: { fontSize: 12, lineHeight: 16, marginTop: 1 },
+  clearBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, marginLeft: 'auto' },
+  clearBtnText: { fontSize: 12, fontWeight: '700' },
   emptyHint: { fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 2 },
   emptyCta: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 999, marginTop: 6 },
   emptyCtaText: { fontSize: 14, fontWeight: '800' },
