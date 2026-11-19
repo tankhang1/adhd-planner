@@ -12,6 +12,8 @@ import { useDayflow } from '@/context/DayflowContext';
 import { BUFFER_OPTIONS, REMINDER_LEADS, formatMinutes, insightFor, overallTendency } from '@/context/DayflowContext';
 import type { VisualMode } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { usePro } from '@/context/ProContext';
+import { ThemePicker } from '@/components/ThemePicker';
 
 function ModeOption({
   mode,
@@ -103,6 +105,7 @@ const notOnWeb = (what: string) => {
 export default function SettingsScreen() {
   const colors = useColors();
   const { t } = useT();
+  const { isPro, showPaywall, showCustomerCenter, restore, offerPro } = usePro();
   const [langOpen, setLangOpen] = useState(false);
   const {
     language,
@@ -118,6 +121,9 @@ export default function SettingsScreen() {
     .filter((x): x is { title: string; ins: NonNullable<typeof x.ins> } => !!x.ins && x.ins.ratio > 1.2)
     .sort((a, b) => b.ins.ratio - a.ins.ratio)
     .slice(0, 3);
+  const openInsights = async () => {
+    if (await offerPro(t('settings.insightsTitle'), t('settings.proInsightsBody'))) router.push('/insights');
+  };
   const quietOn = quietStart !== null && quietEnd !== null;
   const currentLanguageName =
     language === 'system'
@@ -166,6 +172,39 @@ export default function SettingsScreen() {
       </Pressable>
       <LanguageSheet visible={langOpen} onClose={() => setLangOpen(false)} />
 
+      {Platform.OS !== 'web' ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void (isPro ? showCustomerCenter() : showPaywall())}
+          testID="open-pro"
+          style={({ pressed }) => [styles.toggleRow, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
+        >
+          <View style={[styles.modeIcon, { backgroundColor: colors.secondary }]}>
+            <Feather name="star" size={17} color={colors.primary} />
+          </View>
+          <View style={styles.modeCopy}>
+            <Text style={[styles.modeTitle, { color: colors.foreground }]}>{t('settings.proTitle')}</Text>
+            <Text style={[styles.modeSubtitle, { color: colors.mutedForeground }]}>
+              {isPro ? t('settings.proManage') : t('settings.proSub')}
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+        </Pressable>
+      ) : null}
+      {Platform.OS !== 'web' && !isPro ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={async () => {
+            const ok = await restore();
+            Alert.alert(ok ? t('settings.proRestored') : t('settings.proNothingToRestore'));
+          }}
+          testID="restore-purchases"
+          style={styles.restoreLink}
+        >
+          <Text style={[styles.modeSubtitle, { color: colors.primary }]}>{t('settings.proRestore')}</Text>
+        </Pressable>
+      ) : null}
+
       <View style={styles.section}>
         <SectionHeading title={t('settings.lookTitle')} subtitle={t('settings.lookSub')} />
         <ModeOption
@@ -184,6 +223,7 @@ export default function SettingsScreen() {
           selected={visualMode === 'focused'}
           onPress={() => setVisualMode('focused')}
         />
+        <ThemePicker />
       </View>
 
       <View style={styles.section}>
@@ -263,8 +303,11 @@ export default function SettingsScreen() {
             icon="smartphone"
             title={t('settings.liveActivity')}
             subtitle={t('settings.liveActivitySub')}
-            value={liveActivityEnabled}
-            onChange={setLiveActivityEnabled}
+            value={liveActivityEnabled && isPro}
+            onChange={async (v) => {
+              if (v && !(await offerPro(t('settings.liveActivity'), t('settings.proLiveActivity')))) return;
+              setLiveActivityEnabled(v);
+            }}
             testID="toggle-live-activity"
           />
         ) : null}
@@ -351,7 +394,8 @@ export default function SettingsScreen() {
               {t('settings.patternEmpty')}
             </Text>
           )}
-          {overrunners.map(({ title, ins }) => (
+          {/* Free: one pattern. Pro: everything on the Insights screen. */}
+          {(isPro ? overrunners : overrunners.slice(0, 1)).map(({ title, ins }) => (
             <View key={title} style={styles.patternRow}>
               <Feather name="clock" size={14} color={colors.mutedForeground} />
               <Text style={[styles.patternText, { color: colors.foreground }]} numberOfLines={1}>{title}</Text>
@@ -360,6 +404,16 @@ export default function SettingsScreen() {
               </Text>
             </View>
           ))}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void openInsights()}
+            testID="open-insights"
+            style={({ pressed }) => [styles.insightsBtn, { backgroundColor: colors.secondary, opacity: pressed ? 0.75 : 1 }]}
+          >
+            <Feather name={isPro ? 'bar-chart-2' : 'lock'} size={15} color={colors.primary} />
+            <Text style={[styles.modeTitle, { color: colors.primary, fontSize: 14 }]}>{t('settings.insightsTitle')}</Text>
+            {!isPro ? <Text style={[styles.proPill, { color: colors.primary, borderColor: colors.primary }]}>PRO</Text> : null}
+          </Pressable>
         </View>
       </View>
 
@@ -411,6 +465,9 @@ const styles = StyleSheet.create({
   patternRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   patternText: { flex: 1, fontSize: 14, fontWeight: '600' },
   patternMeta: { fontSize: 12, fontWeight: '600' },
+  insightsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 11, borderRadius: 14, marginTop: 4 },
+  proPill: { fontFamily: 'Inter_700Bold', fontSize: 10, borderWidth: 1, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
+  restoreLink: { alignSelf: 'center', paddingVertical: 6 },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 20, borderWidth: 1 },
   header: { gap: 8 },
   headerCopy: { maxWidth: 340, fontSize: 15, lineHeight: 22 },

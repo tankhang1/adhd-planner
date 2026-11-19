@@ -16,6 +16,7 @@ import {
 import { Stack, router, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { DayflowProvider, useDayflow } from '@/context/DayflowContext';
+import { ProProvider, usePro } from '@/context/ProContext';
 import { addReminderTapListener, syncReminders } from '@/services/reminders';
 import { syncWidgets } from '@/services/widgets';
 import { AnimatedSplash } from '@/components/AnimatedSplash';
@@ -41,6 +42,7 @@ function AppEffects() {
     reminderLead, quietStart, quietEnd, extendTask, toggleDayTask, language,
   } = useDayflow();
   const segments = useSegments();
+  const { isPro } = usePro();
 
   useEffect(() => {
     if (!hydrated) return;
@@ -59,14 +61,14 @@ function AppEffects() {
   // Live Activity switches to the next block while the app is open.
   useEffect(() => {
     if (!hydrated) return;
-    const run = () => void syncWidgets(dayTasks.filter((x) => !x.parked), liveActivityEnabled).catch(() => {});
+    const run = () => void syncWidgets(dayTasks.filter((x) => !x.parked), liveActivityEnabled, isPro).catch(() => {});
     const t = setTimeout(run, 500);
     const i = setInterval(run, 60_000);
     return () => {
       clearTimeout(t);
       clearInterval(i);
     };
-  }, [hydrated, dayTasks, liveActivityEnabled, language]);
+  }, [hydrated, dayTasks, liveActivityEnabled, isPro, language]);
 
   // Notification taps and buttons ("+10 min", "Done").
   const actionsRef = React.useRef({ extendTask, toggleDayTask, dayTasks });
@@ -115,6 +117,8 @@ function RootLayoutNav() {
       <Stack.Screen name="nudges" options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="routine-edit" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+      <Stack.Screen name="insights" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="pro" options={{ headerShown: false, animation: 'none' }} />
     </Stack>
     </>
   );
@@ -155,12 +159,14 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <DayflowProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <KeyboardProvider>
-                <RootLayoutNav />
-                <SplashOverlay />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
+            <ProProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <KeyboardProvider>
+                  <RootLayoutNav />
+                  <SplashOverlay />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </ProProvider>
           </DayflowProvider>
         </QueryClientProvider>
       </ErrorBoundary>

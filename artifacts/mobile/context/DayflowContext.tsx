@@ -1,3 +1,4 @@
+import type { ThemeId } from '@/constants/themes';
 import { readState, writeState } from '@/lib/storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -179,6 +180,8 @@ export interface DayflowState {
   inboxTasks: InboxTask[];
   routines: Routine[];
   visualMode: VisualMode;
+  /** Dayflow Pro accent theme (see constants/themes.ts). */
+  theme: ThemeId;
   activeRoutineId: string | null;
   onboarded: boolean;
   profile: Profile | null;
@@ -264,6 +267,7 @@ interface DayflowContextValue extends DayflowState {
   saveRoutine: (draft: RoutineDraft, id?: string) => void;
   removeRoutine: (id: string) => void;
   setVisualMode: (mode: VisualMode) => void;
+  setTheme: (theme: ThemeId) => void;
   setActiveRoutineId: (id: string | null) => void;
   completeOnboarding: (profile: Profile) => void;
   resetOnboarding: () => void;
@@ -503,6 +507,7 @@ const makeInitialState = (): DayflowState => ({
     },
   ],
   visualMode: 'playful',
+  theme: 'violet',
   activeRoutineId: null,
   onboarded: false,
   profile: null,
@@ -907,6 +912,7 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
         })),
 
       setVisualMode: (visualMode) => set((s) => ({ ...s, visualMode })),
+      setTheme: (theme) => set((s) => ({ ...s, theme })),
       setActiveRoutineId: (activeRoutineId) => set((s) => ({ ...s, activeRoutineId })),
 
       completeOnboarding: (profile) =>
@@ -939,4 +945,8 @@ export function useDayflow() {
 
 export function useVisualMode(): VisualMode {
   return useContext(DayflowContext)?.visualMode ?? 'playful';
+}
+
+export function useThemeId(): ThemeId {
+  return useContext(DayflowContext)?.theme ?? 'violet';
 }

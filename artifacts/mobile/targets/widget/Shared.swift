@@ -27,6 +27,8 @@ struct WidgetPayload: Codable {
   let tasks: [WidgetTask]
   /// UI strings already translated by the app (see services/widgetData.ts).
   let labels: [String: String]?
+  /// Dayflow Pro: unlocks medium + Lock Screen widgets.
+  let pro: Bool?
 }
 
 /// Translated UI string from the app, with an English fallback.

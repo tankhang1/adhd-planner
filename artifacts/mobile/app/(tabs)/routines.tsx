@@ -9,6 +9,8 @@ import type { Routine } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
 import { formatDuration, tr, useT } from '@/i18n';
 import { ActivityIcon } from '@/components/ActivityIcon';
+import { usePro } from '@/context/ProContext';
+import { FREE_ROUTINES } from '@/lib/limits';
 
 function RoutineCard({ routine }: { routine: Routine }) {
   const colors = useColors();
@@ -159,7 +161,15 @@ function JoyList() {
 export default function RoutinesScreen() {
   useT();
   const { routines } = useDayflow();
+  const { isPro, offerPro } = usePro();
   const colors = useColors();
+  const newRoutine = async () => {
+    if (!isPro && routines.length >= FREE_ROUTINES) {
+      const ok = await offerPro(tr('settings.proRoutinesTitle'), tr('settings.proRoutinesBody', { count: FREE_ROUTINES }));
+      if (!ok) return;
+    }
+    router.push('/routine-edit');
+  };
   return (
     <Page>
       <View style={styles.header}>
@@ -174,7 +184,7 @@ export default function RoutinesScreen() {
 
       <Pressable
         accessibilityRole="button"
-        onPress={() => router.push('/routine-edit')}
+        onPress={() => void newRoutine()}
         testID="new-routine"
         style={({ pressed }) => [styles.newBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
       >

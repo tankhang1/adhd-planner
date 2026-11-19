@@ -4,7 +4,7 @@ import type { HexColor, WidgetTaskHandlerProps } from 'react-native-android-widg
 import type { DayTask } from '@/context/DayflowContext';
 import { buildWidgetPayload, currentAndNext } from '@/services/widgetData';
 import { applyLanguage, formatClock, tr } from '@/i18n';
-import { readWidgetState } from '@/lib/storage';
+import { readProCache, readWidgetState } from '@/lib/storage';
 import type { LanguageSetting } from '@/i18n';
 import type { WidgetTask } from '@/services/widgetData';
 
@@ -79,7 +79,8 @@ export async function renderTodayWidget() {
   const { current, next } = currentAndNext(payload);
   const nowSec = Date.now() / 1000;
   const mainId = (current ?? next)?.id;
-  const later = payload.tasks.filter((t) => !t.done && t.start > nowSec && t.id !== mainId);
+  // Free: now & next only. Pro: the full "later" list.
+  const later = readProCache() ? payload.tasks.filter((t) => !t.done && t.start > nowSec && t.id !== mainId) : [];
   return <TodayWidget current={current} next={next} later={later} />;
 }
 

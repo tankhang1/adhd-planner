@@ -47,8 +47,8 @@ async function updateAndroid() {
  * Push the latest plan to home-screen widgets and keep the Live Activity
  * in sync with whatever is happening right now.
  */
-export async function syncWidgets(tasks: DayTask[], liveActivityEnabled: boolean) {
-  const payload = buildWidgetPayload(tasks);
+export async function syncWidgets(tasks: DayTask[], liveActivityEnabled: boolean, isPro: boolean) {
+  const payload = { ...buildWidgetPayload(tasks), pro: isPro };
 
   const s = iosStorage();
   if (s) {
@@ -64,7 +64,8 @@ export async function syncWidgets(tasks: DayTask[], liveActivityEnabled: boolean
     const { current, next, overrun } = currentAndNext(payload);
     // A running block wins; otherwise keep showing one that just ran over.
     const shown = current ?? overrun;
-    if (liveActivityEnabled && shown) {
+    // Live Activity is a Pro feature.
+    if (isPro && liveActivityEnabled && shown) {
       await LiveActivity.start({
         taskId: shown.id,
         title: shown.title,

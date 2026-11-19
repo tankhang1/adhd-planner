@@ -79,7 +79,52 @@
       ],
       "expo-mail-composer",
       "expo-localization",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-alternate-app-icons",
+        [
+          {
+            "name": "Ocean",
+            "ios": "./assets/images/icons/icon-ocean.png",
+            "android": {
+              "foregroundImage": "./assets/images/adaptive-foreground.png",
+              "backgroundColor": "#2F7FD8"
+            }
+          },
+          {
+            "name": "Forest",
+            "ios": "./assets/images/icons/icon-forest.png",
+            "android": {
+              "foregroundImage": "./assets/images/adaptive-foreground.png",
+              "backgroundColor": "#1E9E62"
+            }
+          },
+          {
+            "name": "Sunset",
+            "ios": "./assets/images/icons/icon-sunset.png",
+            "android": {
+              "foregroundImage": "./assets/images/adaptive-foreground.png",
+              "backgroundColor": "#E8692F"
+            }
+          },
+          {
+            "name": "Berry",
+            "ios": "./assets/images/icons/icon-berry.png",
+            "android": {
+              "foregroundImage": "./assets/images/adaptive-foreground.png",
+              "backgroundColor": "#E0457B"
+            }
+          },
+          {
+            "name": "Midnight",
+            "ios": "./assets/images/icons/icon-midnight.png",
+            "android": {
+              "foregroundImage": "./assets/images/adaptive-foreground.png",
+              "backgroundColor": "#1F1B3A"
+            }
+          }
+        ]
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

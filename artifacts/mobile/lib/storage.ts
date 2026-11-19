@@ -134,3 +134,8 @@ export function readWidgetState(): { dayTasks?: unknown[]; language?: string } {
   const settings = parse<{ language?: string }>(getRaw(SETTINGS_KEY)) ?? {};
   return { dayTasks: parse<unknown[]>(getRaw(SLICE_KEYS.dayTasks)), language: settings.language };
 }
+
+/** Cached Pro status, so headless widget tasks (Android) know it without RevenueCat. */
+const PRO_KEY = 'df.pro';
+export const writeProCache = (pro: boolean) => setRaw(PRO_KEY, pro ? '1' : '0');
+export const readProCache = () => getRaw(PRO_KEY) === '1';

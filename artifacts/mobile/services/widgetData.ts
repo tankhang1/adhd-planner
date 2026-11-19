@@ -69,7 +69,7 @@ export interface WidgetPayload {
 
 /** Translated strings for native widgets. `{{title}}` / `{{time}}` are filled in Swift. */
 export function widgetLabels(): Record<string, string> {
-  const keys = ['now', 'next', 'later', 'allClear', 'nothingElse', 'enjoy', 'at', 'timesUp', 'nextTask', 'over', 'overrunHint', 'quickAdd'];
+  const keys = ['now', 'next', 'later', 'allClear', 'nothingElse', 'enjoy', 'at', 'timesUp', 'nextTask', 'over', 'overrunHint', 'quickAdd', 'proWidget', 'proWidgetHint'];
   return Object.fromEntries(keys.map((k) => [k, tr(`widget.${k}`, { title: '{{title}}', time: '{{time}}' })]));
 }
 

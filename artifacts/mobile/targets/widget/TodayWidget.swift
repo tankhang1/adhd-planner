@@ -118,7 +118,18 @@ struct TodayWidgetView: View {
   var primary: WidgetTask? { entry.current ?? entry.upcoming.first }
   var rest: [WidgetTask] { entry.current == nil ? Array(entry.upcoming.dropFirst()) : entry.upcoming }
 
+  var isPro: Bool { loadPayload()?.pro ?? false }
+
   var body: some View {
+    // Free: Home Screen small widget. Pro: medium + Lock Screen widgets.
+    if !isPro && family != .systemSmall {
+      ProLockedView(family: family)
+    } else {
+      content
+    }
+  }
+
+  @ViewBuilder var content: some View {
     switch family {
     case .accessoryRectangular:
       if let t = primary {
@@ -191,6 +202,37 @@ struct TodayWidgetView: View {
   }
 }
 
+/// Shown on Pro-only widget sizes for free users; tapping opens the paywall.
+struct ProLockedView: View {
+  let family: WidgetFamily
+
+  var body: some View {
+    switch family {
+    case .accessoryCircular:
+      Image(systemName: "lock.fill")
+    case .accessoryInline:
+      Label(L("proWidget", "Dayflow Pro widget"), systemImage: "lock.fill")
+    case .accessoryRectangular:
+      VStack(alignment: .leading, spacing: 2) {
+        Label("Dayflow Pro", systemImage: "lock.fill").font(.headline)
+        Text(L("proWidgetHint", "Tap to unlock this widget")).font(.caption)
+      }
+    default:
+      VStack(spacing: 8) {
+        Image(systemName: "lock.fill")
+          .font(.system(size: 20, weight: .bold))
+          .foregroundStyle(Color.white)
+          .frame(width: 40, height: 40)
+          .background(brandPrimary, in: Circle())
+        Text("Dayflow Pro").font(.system(size: 15, weight: .heavy, design: .rounded)).foregroundStyle(brandInk)
+        Text(L("proWidgetHint", "Tap to unlock this widget"))
+          .font(.system(size: 12)).foregroundStyle(brandMuted).multilineTextAlignment(.center)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+  }
+}
+
 struct TodayWidget: Widget {
   let kind = "DayflowToday"
 
@@ -204,7 +246,7 @@ struct TodayWidget: Widget {
             Color(hex: "#FBFAFF")
           }
         }
-        .widgetURL(URL(string: "dayflow://"))
+        .widgetURL(URL(string: (loadPayload()?.pro ?? false) ? "dayflow://" : "dayflow://pro"))
     }
     .configurationDisplayName("Now & next")
     .description("See what to do now and how much time is left.")

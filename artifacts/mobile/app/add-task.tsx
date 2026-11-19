@@ -12,6 +12,8 @@ import { useColors } from '@/hooks/useColors';
 import { formatDate, formatDuration, tr, useT } from '@/i18n';
 import { ActivityIcon } from '@/components/ActivityIcon';
 import { IconPicker } from '@/components/IconPicker';
+import { usePro } from '@/context/ProContext';
+import { FREE_RECURRING, FREE_TRIPS_PER_DAY } from '@/lib/limits';
 
 const DURATIONS = [5, 15, 25, 30, 45, 60, 90];
 
@@ -25,7 +27,8 @@ export default function AddTaskScreen() {
   useT();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { addDayTask, updateDayTask, removeDayTask, dayTasks, selectedDate, seriesFor, nextFreeStart, timeLog } = useDayflow();
+  const { addDayTask, updateDayTask, removeDayTask, dayTasks, selectedDate, seriesFor, nextFreeStart, timeLog, recurring } = useDayflow();
+  const { isPro, offerPro } = usePro();
   const existing = id ? dayTasks.find((t) => t.id === id) : undefined;
   const series = existing ? seriesFor(existing) : undefined;
   const initialDays = series?.days ?? [];
@@ -68,8 +71,14 @@ export default function AddTaskScreen() {
     ]);
   };
 
-  const save = () => {
+  const save = async () => {
     if (!canSave) return;
+    // Starting a new repeating series is limited on the free plan.
+    const newSeries = repeatDays.length > 0 && !series;
+    if (newSeries && !isPro && recurring.length >= FREE_RECURRING) {
+      const ok = await offerPro(tr('settings.proRecurringTitle'), tr('settings.proRecurringBody', { count: FREE_RECURRING }));
+      if (!ok) return;
+    }
     const fields = { title, start, duration, tone, icon, essential: essentialFlag, travel, prep: travel ? prep : 0 };
     if (!existing) {
       addDayTask({ ...fields, date, repeatDays });
@@ -248,7 +257,16 @@ export default function AddTaskScreen() {
             </View>
             <Switch
               value={travel > 0}
-              onValueChange={(on) => setTravel(on ? 20 : 0)}
+              onValueChange={async (on) => {
+                if (on && !isPro) {
+                  const trips = dayTasks.filter((t) => t.date === date && (t.travel ?? 0) > 0 && t.id !== existing?.id).length;
+                  if (trips >= FREE_TRIPS_PER_DAY) {
+                    const ok = await offerPro(tr('settings.proTripsTitle'), tr('settings.proTripsBody', { count: FREE_TRIPS_PER_DAY }));
+                    if (!ok) return;
+                  }
+                }
+                setTravel(on ? 20 : 0);
+              }}
               trackColor={{ true: colors.primary, false: colors.input }}
               accessibilityLabel={tr('addTask.trip')}
               testID="toggle-trip"

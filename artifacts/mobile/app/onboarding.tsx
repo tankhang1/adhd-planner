@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatMinutes, useDayflow } from '@/context/DayflowContext';
 import type { Struggle } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
+import { usePro } from '@/context/ProContext';
 import { tr, useT } from '@/i18n';
 import { CloudBuddy } from '@/components/CloudBuddy';
 
@@ -48,6 +49,7 @@ export default function OnboardingScreen() {
   useT();
   const insets = useSafeAreaInsets();
   const { completeOnboarding } = useDayflow();
+  const { showPaywall } = usePro();
   const [step, setStep] = useState(0);
   const [wake, setWake] = useState(7 * 60 + 30);
   const [sleep, setSleep] = useState(23 * 60);
@@ -116,6 +118,8 @@ export default function OnboardingScreen() {
     completeOnboarding({ wake, sleep, struggle: struggle ?? 'overwhelm' });
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.replace('/(tabs)');
+    // Offer Pro once, after the user lands on Today. Closable; never blocks the app.
+    setTimeout(() => void showPaywall(), 600);
   };
 
   return (
