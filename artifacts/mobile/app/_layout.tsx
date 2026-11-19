@@ -1,6 +1,6 @@
 import '@/i18n';
 import React, { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -15,11 +15,13 @@ import {
 } from '@expo-google-fonts/inter';
 import { Stack, router, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { DayflowProvider, useDayflow } from '@/context/DayflowContext';
+import { DayflowProvider, toDateKey, useDayflow } from '@/context/DayflowContext';
 import { ProProvider, usePro } from '@/context/ProContext';
 import { addReminderTapListener, syncReminders } from '@/services/reminders';
 import { syncWidgets } from '@/services/widgets';
 import { AnimatedSplash } from '@/components/AnimatedSplash';
+import { StatusBar } from 'expo-status-bar';
+import { useColors } from '@/hooks/useColors';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -39,7 +41,7 @@ const minutesNow = () => {
 function AppEffects() {
   const {
     hydrated, onboarded, dayTasks, remindersEnabled, liveActivityEnabled,
-    reminderLead, quietStart, quietEnd, extendTask, toggleDayTask, language,
+    reminderLead, quietStart, quietEnd, extendTask, toggleDayTask, language, openNowOnLaunch,
   } = useDayflow();
   const segments = useSegments();
   const { isPro } = usePro();
@@ -70,6 +72,33 @@ function AppEffects() {
     };
   }, [hydrated, dayTasks, liveActivityEnabled, isPro, language]);
 
+  // Now view: when the app opens (or comes back) while a block is running, jump straight
+  // to the calm full-screen timer. Once per block, never over another screen or onboarding.
+  const shownNowFor = React.useRef(new Set<string>());
+  const nowRef = React.useRef({ dayTasks, openNowOnLaunch, onboarded, segments });
+  nowRef.current = { dayTasks, openNowOnLaunch, onboarded, segments };
+  useEffect(() => {
+    if (!hydrated) return;
+    const maybeOpenNow = () => {
+      const { dayTasks: tasks, openNowOnLaunch: on, onboarded: ob, segments: seg } = nowRef.current;
+      if (!on || !ob || seg[0] !== '(tabs)') return;
+      const today = toDateKey(new Date());
+      const m = minutesNow();
+      const running = tasks.find((t) => t.date === today && !t.done && !t.parked && m >= t.start && m < t.start + t.duration);
+      if (!running || shownNowFor.current.has(running.id)) return;
+      shownNowFor.current.add(running.id);
+      router.push({ pathname: '/focus', params: { taskId: running.id } });
+    };
+    const first = setTimeout(maybeOpenNow, 900);
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') setTimeout(maybeOpenNow, 300);
+    });
+    return () => {
+      clearTimeout(first);
+      sub.remove();
+    };
+  }, [hydrated]);
+
   // Notification taps and buttons ("+10 min", "Done").
   const actionsRef = React.useRef({ extendTask, toggleDayTask, dayTasks });
   actionsRef.current = { extendTask, toggleDayTask, dayTasks };
@@ -96,11 +125,13 @@ function AppEffects() {
 }
 
 function RootLayoutNav() {
+  const colors = useColors();
   return (
     <>
+    <StatusBar style={colors.dark ? 'light' : 'dark'} />
     <AppEffects />
     {DevScene ? <DevScene /> : null}
-    <Stack screenOptions={{ headerBackTitle: 'Back' }}>
+    <Stack screenOptions={{ headerBackTitle: 'Back', contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="focus"

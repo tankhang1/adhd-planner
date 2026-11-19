@@ -89,7 +89,7 @@ export default function RoutineRunScreen() {
         {routine.steps.map((s, i) => (
           <View
             key={s.id}
-            style={[styles.seg, { backgroundColor: i < index ? ink : i === index ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.5)' }]}
+            style={[styles.seg, { backgroundColor: i < index ? ink : i === index ? colors.card : colors.onTone }]}
           />
         ))}
       </View>
@@ -120,7 +120,7 @@ export default function RoutineRunScreen() {
 
           <View style={styles.ring}>
             <Svg width={SIZE} height={SIZE}>
-              <Circle cx={SIZE / 2} cy={SIZE / 2} r={R} stroke="rgba(255,255,255,0.7)" strokeWidth={STROKE} fill="none" />
+              <Circle cx={SIZE / 2} cy={SIZE / 2} r={R} stroke={colors.onTone} strokeWidth={STROKE} fill="none" />
               <Circle
                 cx={SIZE / 2}
                 cy={SIZE / 2}

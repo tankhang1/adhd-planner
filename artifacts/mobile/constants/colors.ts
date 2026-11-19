@@ -42,6 +42,8 @@ const playful = {
   // Hero surfaces (kept for API compatibility; now bright)
   forest: '#6C5CE7',
   onForest: '#FFFFFF',
+  /** Progress track drawn on top of an activity fill. */
+  onTone: 'rgba(255,255,255,0.75)',
 };
 
 const focused = {
@@ -58,9 +60,60 @@ const focused = {
   forest: '#5A4FCF',
 };
 
+/** Dark mode: deep violet-navy surfaces, muted tone fills, brighter inks. */
+const playfulDark: typeof playful = {
+  ...playful,
+  text: '#F2F0FF',
+  tint: '#8B7CF6',
+  background: '#13112A',
+  foreground: '#F2F0FF',
+  card: '#1D1A38',
+  cardForeground: '#F2F0FF',
+  primary: '#8B7CF6',
+  primaryForeground: '#FFFFFF',
+  secondary: '#2A2452',
+  secondaryForeground: '#CFC7FF',
+  muted: '#25213F',
+  mutedForeground: '#A9A4C8',
+  accent: '#FF8A65',
+  border: '#2D2850',
+  input: '#3A3462',
+  sage: '#173B2D',
+  apricot: '#3F2719',
+  sky: '#16304C',
+  lilac: '#2B2554',
+  rose: '#3F1C2C',
+  lemon: '#3A3214',
+  sageInk: '#4FD89C',
+  apricotInk: '#FF9C6B',
+  skyInk: '#6DB7FF',
+  lilacInk: '#AB9EFF',
+  roseInk: '#FF7DAA',
+  lemonInk: '#FFD45A',
+  forest: '#8B7CF6',
+  onTone: 'rgba(255,255,255,0.16)',
+};
+
+const focusedDark: typeof playful = {
+  ...playfulDark,
+  background: '#111118',
+  card: '#1A1A24',
+  primary: '#7D72E0',
+  tint: '#7D72E0',
+  forest: '#7D72E0',
+  sage: '#1B2E25',
+  apricot: '#33261E',
+  sky: '#1B2938',
+  lilac: '#252240',
+  rose: '#33212A',
+  lemon: '#302B1A',
+};
+
 const colors = {
   light: playful,
   focused,
+  dark: playfulDark,
+  focusedDark,
   radius: 22,
 };
 

@@ -1,16 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { GestureDetector, ScrollView, usePanGesture } from 'react-native-gesture-handler';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Svg, { Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDayflow, useVisualMode, formatMinutes, toDateKey, fromDateKey, todayKey, leaveTimes } from '@/context/DayflowContext';
+import { useDayflow, useVisualMode, formatMinutes, toDateKey, fromDateKey, todayKey, leaveTimes, isEssential } from '@/context/DayflowContext';
 import { useCalendarEvents } from '@/services/calendar';
 import { formatDate, formatDuration, tr as t, useT } from '@/i18n';
 import { EnergyCheckIn } from '@/components/EnergyCheckIn';
 import { BuddyDialog, DialogButton } from '@/components/BuddyDialog';
 import { CloudBuddy } from '@/components/CloudBuddy';
+import type { BuddyMood } from '@/components/CloudBuddy';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { Celebration } from '@/components/Celebration';
 import { WeeklyReview } from '@/components/WeeklyReview';
 import { weekToReview } from '@/services/weekly';
@@ -20,6 +23,7 @@ import type { CalendarEvent } from '@/services/calendar';
 import type { DayTask } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
 import { ActivityIcon } from '@/components/ActivityIcon';
+import { QuickAddBar } from '@/components/QuickAddBar';
 
 type Colors = ReturnType<typeof useColors>;
 const PX_PER_MIN = 1.5;
@@ -35,50 +39,117 @@ function minutesNow(d: Date) {
 
 /* ------------------------------ Week strip ------------------------------ */
 
+const WEEKS_BACK = 8;
+const WEEKS_AHEAD = 8;
+
+function mondayOfDate(d: Date) {
+  const m = new Date(d);
+  m.setHours(12, 0, 0, 0);
+  m.setDate(m.getDate() - ((m.getDay() + 6) % 7));
+  return m;
+}
+
+/** Swipe between weeks; dots mark days that have plans. */
 function WeekStrip({ today, selected, onSelect, busy }: { today: Date; selected: string; onSelect: (key: string) => void; busy: Set<string> }) {
   const colors = useColors();
-  const start = new Date(today);
-  start.setDate(today.getDate() - ((today.getDay() + 6) % 7)); // Monday
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    return d;
-  });
+  const [width, setWidth] = useState(0);
+  const scrollRef = React.useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const thisMonday = mondayOfDate(today);
+  const weeks = useMemo(
+    () =>
+      Array.from({ length: WEEKS_BACK + WEEKS_AHEAD + 1 }, (_, w) =>
+        Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(thisMonday);
+          d.setDate(thisMonday.getDate() + (w - WEEKS_BACK) * 7 + i);
+          return d;
+        }),
+      ),
+    [thisMonday.toDateString()], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  // Page holding the selected day (so quick-adding to tomorrow or tapping "Today" follows along).
+  const selectedPage = Math.max(
+    0,
+    Math.min(weeks.length - 1, WEEKS_BACK + Math.round((mondayOfDate(fromDateKey(selected)).getTime() - thisMonday.getTime()) / (7 * 864e5))),
+  );
+  const [page, setPage] = useState(selectedPage);
+  useEffect(() => {
+    if (!width || selectedPage === page) return;
+    scrollRef.current?.scrollTo({ x: selectedPage * width, animated: true });
+    setPage(selectedPage);
+  }, [selectedPage, width]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const offWeek = page !== WEEKS_BACK;
   return (
-    <View style={styles.week}>
-      {days.map((d, i) => {
-        const key = toDateKey(d);
-        const isSel = key === selected;
-        const isToday = d.toDateString() === today.toDateString();
-        return (
-          <Pressable
-            key={i}
-            accessibilityRole="button"
-            accessibilityState={{ selected: isSel }}
-            accessibilityLabel={d.toDateString()}
-            onPress={() => onSelect(key)}
-            testID={`week-day-${i}`}
-            style={[styles.weekDay, { backgroundColor: isSel ? colors.primary : 'transparent' }]}
-          >
-            <Text maxFontSizeMultiplier={1.3} style={[styles.weekDow, { color: isSel ? colors.primaryForeground : colors.mutedForeground }]}>
-              {formatDate(d, { weekday: 'narrow' })}
-            </Text>
-            <Text maxFontSizeMultiplier={1.3} style={[styles.weekNum, { color: isSel ? colors.primaryForeground : colors.foreground }]}>
-              {d.getDate()}
-            </Text>
-            <View
-              style={[
-                styles.weekDot,
-                {
-                  backgroundColor: isToday
-                    ? isSel ? colors.primaryForeground : colors.accent
-                    : busy.has(key) ? (isSel ? colors.primaryForeground : colors.border) : 'transparent',
-                },
-              ]}
-            />
-          </Pressable>
-        );
-      })}
+    <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      {width ? (
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          contentOffset={{ x: selectedPage * width, y: 0 }}
+          onMomentumScrollEnd={(e) => {
+            const p = Math.round(e.nativeEvent.contentOffset.x / width);
+            if (p !== page) void Haptics.selectionAsync();
+            setPage(p);
+          }}
+        >
+          {weeks.map((days, w) => (
+            <View key={w} style={[styles.week, { width }]}>
+              {days.map((d, i) => {
+                const key = toDateKey(d);
+                const isSel = key === selected;
+                const isToday = d.toDateString() === today.toDateString();
+                return (
+                  <Pressable
+                    key={i}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSel }}
+                    accessibilityLabel={formatDate(d, { weekday: 'long', month: 'long', day: 'numeric' })}
+                    onPress={() => onSelect(key)}
+                    testID={w === WEEKS_BACK ? `week-day-${i}` : undefined}
+                    style={[styles.weekDay, { backgroundColor: isSel ? colors.primary : 'transparent' }]}
+                  >
+                    <Text maxFontSizeMultiplier={1.3} style={[styles.weekDow, { color: isSel ? colors.primaryForeground : colors.mutedForeground }]}>
+                      {formatDate(d, { weekday: 'narrow' })}
+                    </Text>
+                    <Text maxFontSizeMultiplier={1.3} style={[styles.weekNum, { color: isSel ? colors.primaryForeground : colors.foreground }]}>
+                      {d.getDate()}
+                    </Text>
+                    <View
+                      style={[
+                        styles.weekDot,
+                        {
+                          backgroundColor: isToday
+                            ? isSel ? colors.primaryForeground : colors.accent
+                            : busy.has(key) ? (isSel ? colors.primaryForeground : colors.border) : 'transparent',
+                        },
+                      ]}
+                    />
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+        </ScrollView>
+      ) : (
+        <View style={styles.weekPlaceholder} />
+      )}
+      {offWeek ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            onSelect(toDateKey(today));
+            scrollRef.current?.scrollTo({ x: WEEKS_BACK * width, animated: true });
+            setPage(WEEKS_BACK);
+          }}
+          testID="week-today"
+          style={({ pressed }) => [styles.weekToday, { backgroundColor: colors.secondary, opacity: pressed ? 0.8 : 1 }]}
+        >
+          <Feather name="corner-up-left" size={12} color={colors.secondaryForeground} />
+          <Text style={[styles.weekTodayText, { color: colors.secondaryForeground }]}>{t('today.backToToday')}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -195,7 +266,7 @@ function NowCard({ tasks, now }: { tasks: DayTask[]; now: number }) {
       ]}
     >
       <View style={styles.nowRing}>
-        <Ring progress={progress} color={ink} track={quiet ? colors.muted : 'rgba(255,255,255,0.7)'} />
+        <Ring progress={progress} color={ink} track={quiet ? colors.muted : colors.onTone} />
         <View style={styles.nowRingIcon}>
           <ActivityIcon name={task.icon} size={26} color={ink} />
         </View>
@@ -222,32 +293,98 @@ function NowCard({ tasks, now }: { tasks: DayTask[]; now: number }) {
 
 /* ------------------------------ Timeline -------------------------------- */
 
+/** Drag distance → minutes, snapped to 5. */
+const snapMinutes = (dy: number) => Math.round(dy / PX_PER_MIN / 5) * 5;
+
 function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; onToggle: () => void }) {
   const colors = useColors();
+  const { updateDayTask } = useDayflow();
   const ink = inkFor(colors, task.tone);
   const quiet = useVisualMode() === 'focused';
-  const height = quiet ? MIN_BLOCK - 8 : Math.max(MIN_BLOCK, task.duration * PX_PER_MIN);
+
+  // Long-press + drag moves the block; dragging the bottom grip changes its length.
+  // A long-press without moving still opens the editor.
+  const [drag, setDrag] = useState<{ mode: 'move' | 'resize'; dy: number } | null>(null);
+  const lastSnap = React.useRef(0);
+  const tick = (dy: number) => {
+    const m = snapMinutes(dy);
+    if (m !== lastSnap.current) {
+      lastSnap.current = m;
+      void Haptics.selectionAsync();
+    }
+  };
+  const newStart = (dy: number) => Math.min(24 * 60 - task.duration, Math.max(0, task.start + snapMinutes(dy)));
+  const newDuration = (dy: number) => Math.min(12 * 60, Math.max(5, task.duration + snapMinutes(dy)));
+  const moveGesture = usePanGesture({
+    activateAfterLongPress: 350,
+    runOnJS: true,
+    onActivate: () => {
+      lastSnap.current = 0;
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setDrag({ mode: 'move', dy: 0 });
+    },
+    onUpdate: (e) => {
+      tick(e.translationY);
+      setDrag({ mode: 'move', dy: e.translationY });
+    },
+    onDeactivate: (e) => {
+      setDrag(null);
+      if (e.canceled) return;
+      if (Math.abs(snapMinutes(e.translationY)) < 5) {
+        router.push({ pathname: '/add-task', params: { id: task.id } });
+        return;
+      }
+      updateDayTask(task.id, { start: newStart(e.translationY) }, 'one');
+    },
+    onFinalize: () => setDrag(null),
+  });
+  const resizeGesture = usePanGesture({
+    runOnJS: true,
+    activeOffsetY: [-4, 4],
+    onActivate: () => {
+      lastSnap.current = 0;
+      setDrag({ mode: 'resize', dy: 0 });
+    },
+    onUpdate: (e) => {
+      tick(e.translationY);
+      setDrag({ mode: 'resize', dy: e.translationY });
+    },
+    onDeactivate: (e) => {
+      setDrag(null);
+      if (!e.canceled && Math.abs(snapMinutes(e.translationY)) >= 5) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        updateDayTask(task.id, { duration: newDuration(e.translationY) }, 'one');
+      }
+    },
+    onFinalize: () => setDrag(null),
+  });
+  const moving = drag?.mode === 'move';
+  const resizing = drag?.mode === 'resize';
+  const previewDuration = resizing ? newDuration(drag.dy) : task.duration;
+  const height = quiet ? MIN_BLOCK - 8 : Math.max(MIN_BLOCK, previewDuration * PX_PER_MIN);
   const active = now >= task.start && now < task.start + task.duration;
   const past = now >= task.start + task.duration;
   const fill = active ? (now - task.start) / task.duration : 0;
 
   return (
-    <View style={styles.row}>
+    <View
+      style={[
+        styles.row,
+        moving && { transform: [{ translateY: drag.dy }, { scale: 1.02 }], zIndex: 10, ...styles.lifted },
+        resizing && { zIndex: 10 },
+      ]}
+    >
       <View style={styles.timeCol}>
-        <Text maxFontSizeMultiplier={1.3} style={[styles.timeText, { color: active ? ink : colors.mutedForeground }]}>
-          {formatMinutes(task.start)}
+        <Text maxFontSizeMultiplier={1.3} style={[styles.timeText, { color: active || drag ? ink : colors.mutedForeground }]}>
+          {formatMinutes(moving ? newStart(drag.dy) : task.start)}
         </Text>
       </View>
+      <GestureDetector gesture={moveGesture}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t('today.blockA11y', { title: task.title, time: formatMinutes(task.start), count: task.duration })}
         accessibilityHint={t('today.blockHint')}
         onPress={() => router.push({ pathname: '/focus', params: { taskId: task.id } })}
-        onLongPress={() => {
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          router.push({ pathname: '/add-task', params: { id: task.id } });
-        }}
-        delayLongPress={350}
         testID={`task-${task.id}`}
         style={({ pressed }) => [
           styles.block,
@@ -293,7 +430,7 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
             <View
               accessibilityRole="progressbar"
               accessibilityValue={{ min: 0, max: 100, now: Math.round(fill * 100) }}
-              style={[styles.blockTrack, { backgroundColor: quiet ? colors.muted : 'rgba(255,255,255,0.75)' }]}
+              style={[styles.blockTrack, { backgroundColor: quiet ? colors.muted : colors.onTone }]}
             >
               <View style={[styles.blockProgress, { width: `${Math.max(4, fill * 100)}%`, backgroundColor: ink }]} />
             </View>
@@ -313,7 +450,34 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
         >
           {task.done ? <Feather name="check" size={15} color="#FFFFFF" /> : null}
         </Pressable>
+        {drag ? (
+          <View style={[styles.dragPill, { backgroundColor: ink }]} pointerEvents="none">
+            <Text style={styles.dragPillText}>
+              {moving
+                ? `${formatMinutes(newStart(drag.dy))} – ${formatMinutes(newStart(drag.dy) + task.duration)}`
+                : formatDuration(previewDuration)}
+            </Text>
+          </View>
+        ) : null}
+        {!quiet && !task.done ? (
+          <GestureDetector gesture={resizeGesture}>
+            <View
+              style={styles.resizeHit}
+              accessibilityRole="adjustable"
+              accessibilityLabel={t('today.resizeA11y', { title: task.title })}
+              accessibilityValue={{ text: formatDuration(task.duration) }}
+              accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+              onAccessibilityAction={(e) =>
+                updateDayTask(task.id, { duration: Math.max(5, task.duration + (e.nativeEvent.actionName === 'increment' ? 5 : -5)) }, 'one')
+              }
+              testID={`resize-${task.id}`}
+            >
+              <View style={[styles.resizeGrip, { backgroundColor: ink, opacity: resizing ? 0.9 : 0.35 }]} />
+            </View>
+          </GestureDetector>
+        ) : null}
       </Pressable>
+      </GestureDetector>
     </View>
   );
 }
@@ -491,6 +655,37 @@ function Gap({ minutes }: { minutes: number }) {
   );
 }
 
+/** Little cloud by the greeting whose face follows how the day is going. Tap for a wiggle. */
+function ProgressBuddy({ done, total, hour }: { done: number; total: number; hour: number }) {
+  const ratio = total ? done / total : 0;
+  const mood: BuddyMood =
+    total && done === total ? 'happy' : ratio >= 0.5 ? 'happy' : done > 0 ? 'okay' : hour >= 21 ? 'sleepy' : 'hello';
+  const reduce = useReducedMotion();
+  const bounce = useSharedValue(1);
+  const wiggle = useSharedValue(0);
+  useEffect(() => {
+    if (reduce) return;
+    bounce.value = withSequence(withTiming(1.18, { duration: 140 }), withSpring(1, { damping: 6 }));
+  }, [done, reduce]); // eslint-disable-line react-hooks/exhaustive-deps
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: bounce.value }, { rotate: `${wiggle.value}deg` }] }));
+  return (
+    <Pressable
+      accessibilityRole="image"
+      accessibilityLabel={total ? t('today.buddyProgress', { done, total }) : t('today.buddyHello')}
+      onPress={() => {
+        void Haptics.selectionAsync();
+        if (!reduce) wiggle.value = withSequence(withTiming(-12, { duration: 70 }), withTiming(12, { duration: 90 }), withSpring(0, { damping: 5 }));
+      }}
+      hitSlop={6}
+      testID="progress-buddy"
+    >
+      <Animated.View style={style}>
+        <CloudBuddy mood={mood} size={48} />
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 /* ------------------------------- Screen --------------------------------- */
 
 export default function TodayScreen() {
@@ -502,8 +697,9 @@ export default function TodayScreen() {
     dayTasks, toggleDayTask, tasksFor, selectedDate, setSelectedDate,
     rolledOverCount, dismissRolloverBanner, calendarSyncEnabled,
     awayDays, dismissWelcomeBack, moveRolledOverToInbox,
-    isSurvivalDay, energyFor,
+    isSurvivalDay, energyFor, startSurvivalDay, lightenDay,
   } = useDayflow();
+  const [overwhelmOpen, setOverwhelmOpen] = useState(false);
   const [clock, setClock] = useState(() => new Date());
 
   useEffect(() => {
@@ -540,8 +736,18 @@ export default function TodayScreen() {
 
   // Small celebration on tick-off. Varied, kind lines; never a streak.
   const [celebration, setCelebration] = useState<string | null>(null);
+  const [bigCelebration, setBigCelebration] = useState(false);
   const celebrate = () => {
     const doneToday = sorted.filter((t) => t.done).length + 1;
+    if (isToday && sorted.length >= 2 && doneToday === sorted.length) {
+      // Everything on today's plan is done: the big moment.
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTimeout(() => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 180);
+      setBigCelebration(true);
+      setCelebration(t('today.celebrateAllDone'));
+      return;
+    }
+    setBigCelebration(false);
     const lines = [1, 2, 3, 4, 5].map((i) => t(`today.celebrate${i}`));
     const msg = doneToday >= 3 && doneToday % 3 === 0 ? t('today.celebrateCount', { count: doneToday }) : lines[Math.floor(Math.random() * lines.length)];
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -559,6 +765,7 @@ export default function TodayScreen() {
   const allDay = events.filter((e) => e.allDay);
   const busy = useMemo(() => new Set(dayTasks.map((t) => t.date)), [dayTasks]);
   const completed = sorted.filter((t) => t.done).length;
+  const openNonEssential = sorted.filter((t) => !t.done && !isEssential(t) && t.start + t.duration > (isToday ? now : 0)).length;
   type Item = { kind: 'task'; task: (typeof sorted)[number] } | { kind: 'event'; event: CalendarEvent };
   const items: Item[] = [
     ...sorted.map((task) => ({ kind: 'task' as const, task })),
@@ -589,6 +796,18 @@ export default function TodayScreen() {
               {formatDate(fromDateKey(selectedDate), { weekday: 'long', month: 'long', day: 'numeric' })}
             </Text>
             <View style={styles.headerIcons}>
+              {isToday && !isSurvivalDay(selectedDate) && openNonEssential >= 2 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('overwhelm.open')}
+                  onPress={() => setOverwhelmOpen(true)}
+                  hitSlop={8}
+                  testID="open-overwhelm"
+                  style={({ pressed }) => [styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <MaterialCommunityIcons name="lifebuoy" size={18} color={colors.roseInk} />
+                </Pressable>
+              ) : null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={nudgeCount ? `${t('nudges.open')}. ${t('nudges.badge', { count: nudgeCount })}` : t('nudges.open')}
@@ -623,14 +842,17 @@ export default function TodayScreen() {
               ) : null}
             </View>
           </View>
-          <Text
-            style={[styles.greeting, { color: colors.foreground }]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.7}
-          >
-            {isToday ? greeting : fromDateKey(selectedDate) < clock ? t('today.lookingBack') : t('today.planningAhead')}
-          </Text>
+          <View style={styles.greetingRow}>
+            <Text
+              style={[styles.greeting, { color: colors.foreground, flex: 1 }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
+              {isToday ? greeting : fromDateKey(selectedDate) < clock ? t('today.lookingBack') : t('today.planningAhead')}
+            </Text>
+            {isToday ? <ProgressBuddy done={completed} total={sorted.length} hour={hour} /> : null}
+          </View>
         </View>
 
         <WeekStrip today={clock} selected={selectedDate} onSelect={setSelectedDate} busy={busy} />
@@ -641,7 +863,7 @@ export default function TodayScreen() {
           <SurvivalBanner date={selectedDate} parkedCount={dayTasks.filter((t) => t.date === selectedDate && t.parked).length} />
         ) : null}
 
-        {overrun ? <OverrunNudge task={overrun} now={now} allowDialog={!showWelcome && !showWeekly && !energyOpen && !celebration} /> : null}
+        {overrun ? <OverrunNudge task={overrun} now={now} allowDialog={!showWelcome && !showWeekly && !energyOpen && !celebration && !overwhelmOpen} /> : null}
 
         {isToday ? <NowCard tasks={sorted} now={now} /> : null}
 
@@ -710,6 +932,8 @@ export default function TodayScreen() {
           <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>{t('today.tapHint')}</Text>
         </View>
 
+        {selectedDate >= todayKey() ? <QuickAddBar date={selectedDate} /> : null}
+
         <View>
           {items.map((it, i) => {
             const prev = items[i - 1];
@@ -771,6 +995,46 @@ export default function TodayScreen() {
         <DialogButton label={rolledOverCount ? t('today.welcomeKeep') : t('common.letsGo')} testID="welcome-keep" onPress={closeWelcome} />
       </BuddyDialog>
 
+      <BuddyDialog
+        visible={overwhelmOpen}
+        mood="okay"
+        title={t('overwhelm.title')}
+        message={t('overwhelm.message')}
+        onClose={() => setOverwhelmOpen(false)}
+      >
+        <DialogButton
+          label={t('overwhelm.essentials')}
+          testID="overwhelm-essentials"
+          icon={<MaterialCommunityIcons name="lifebuoy" size={18} color={colors.primaryForeground} />}
+          onPress={() => {
+            startSurvivalDay(selectedDate);
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setOverwhelmOpen(false);
+          }}
+        />
+        {openNonEssential > 2 ? (
+          <DialogButton
+            label={t('overwhelm.keepTwo')}
+            variant="secondary"
+            testID="overwhelm-keep-two"
+            onPress={() => {
+              lightenDay(selectedDate, 2);
+              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              setOverwhelmOpen(false);
+            }}
+          />
+        ) : null}
+        <DialogButton
+          label={t('overwhelm.oneThing')}
+          variant="text"
+          testID="overwhelm-one-thing"
+          onPress={() => {
+            setOverwhelmOpen(false);
+            router.push('/one-thing');
+          }}
+        />
+      </BuddyDialog>
+
       {showWeekly && reviewWeek ? <WeeklyReview monday={reviewWeek} onClose={() => setWeeklyClosed(true)} /> : null}
 
       <EnergyCheckIn
@@ -780,7 +1044,7 @@ export default function TodayScreen() {
         onVisibleChange={setEnergyOpen}
       />
 
-      {celebration ? <Celebration message={celebration} onDone={() => setCelebration(null)} /> : null}
+      {celebration ? <Celebration message={celebration} big={bigCelebration} onDone={() => setCelebration(null)} /> : null}
 
       <Pressable
         accessibilityRole="button"
@@ -811,6 +1075,7 @@ const styles = StyleSheet.create({
   iconBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   sectionBlock: { gap: 2 },
   date: { flex: 1, fontSize: 14, fontWeight: '600' },
+  greetingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   greeting: { fontSize: 32, lineHeight: 38, fontWeight: '800', letterSpacing: -0.8 },
   progressChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
   progressChipText: { fontSize: 13, fontWeight: '700' },
@@ -819,6 +1084,9 @@ const styles = StyleSheet.create({
   weekDow: { fontSize: 12, fontWeight: '600' },
   weekNum: { fontSize: 17, fontWeight: '700' },
   weekDot: { width: 5, height: 5, borderRadius: 3 },
+  weekPlaceholder: { height: 66 },
+  weekToday: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999, marginTop: 8 },
+  weekTodayText: { fontSize: 12, fontWeight: '700' },
   nowCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 26 },
   nowRing: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center' },
   nowRingIcon: { position: 'absolute' },
@@ -850,6 +1118,11 @@ const styles = StyleSheet.create({
   blockTitle: { fontSize: 15, lineHeight: 20, fontWeight: '700' },
   blockMeta: { fontSize: 12, fontWeight: '500' },
   done: { textDecorationLine: 'line-through' },
+  lifted: { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+  dragPill: { position: 'absolute', top: 8, right: 44, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  dragPillText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  resizeHit: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 18, alignItems: 'center', justifyContent: 'center' },
+  resizeGrip: { width: 36, height: 4, borderRadius: 2 },
   check: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   nowLineRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   nowPill: { width: 62, paddingVertical: 4, borderRadius: 999, alignItems: 'center' },

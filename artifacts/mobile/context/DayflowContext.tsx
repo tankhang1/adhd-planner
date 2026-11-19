@@ -106,6 +106,7 @@ export const REPEAT_PRESETS: Array<{ key: string; label: string; days: number[] 
 export const REMINDER_LEADS = [5, 10, 15] as const;
 export const BUFFER_OPTIONS = [0, 5, 10, 15] as const;
 
+export type Appearance = 'system' | 'light' | 'dark';
 export type EnergyLevel = 'low' | 'okay' | 'high';
 export interface EnergyEntry {
   date: string;
@@ -182,12 +183,16 @@ export interface DayflowState {
   visualMode: VisualMode;
   /** Dayflow Pro accent theme (see constants/themes.ts). */
   theme: ThemeId;
+  /** Light / dark / follow the phone. */
+  appearance: Appearance;
   activeRoutineId: string | null;
   onboarded: boolean;
   profile: Profile | null;
   remindersEnabled: boolean;
   calendarSyncEnabled: boolean;
   liveActivityEnabled: boolean;
+  /** Open the full-screen Now view when the app opens while a block is running. */
+  openNowOnLaunch: boolean;
   /** Count of tasks moved forward at last open, for the gentle banner */
   rolledOverCount: number;
   recurring: RecurringTask[];
@@ -268,12 +273,14 @@ interface DayflowContextValue extends DayflowState {
   removeRoutine: (id: string) => void;
   setVisualMode: (mode: VisualMode) => void;
   setTheme: (theme: ThemeId) => void;
+  setAppearance: (appearance: Appearance) => void;
   setActiveRoutineId: (id: string | null) => void;
   completeOnboarding: (profile: Profile) => void;
   resetOnboarding: () => void;
   setRemindersEnabled: (on: boolean) => void;
   setCalendarSyncEnabled: (on: boolean) => void;
   setLiveActivityEnabled: (on: boolean) => void;
+  setOpenNowOnLaunch: (on: boolean) => void;
   dismissRolloverBanner: () => void;
 }
 
@@ -508,12 +515,14 @@ const makeInitialState = (): DayflowState => ({
   ],
   visualMode: 'playful',
   theme: 'violet',
+  appearance: 'system',
   activeRoutineId: null,
   onboarded: false,
   profile: null,
   remindersEnabled: false,
   calendarSyncEnabled: false,
   liveActivityEnabled: true,
+  openNowOnLaunch: true,
   rolledOverCount: 0,
   recurring: [],
   reminderLead: 5,
@@ -913,6 +922,7 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
 
       setVisualMode: (visualMode) => set((s) => ({ ...s, visualMode })),
       setTheme: (theme) => set((s) => ({ ...s, theme })),
+      setAppearance: (appearance) => set((s) => ({ ...s, appearance })),
       setActiveRoutineId: (activeRoutineId) => set((s) => ({ ...s, activeRoutineId })),
 
       completeOnboarding: (profile) =>
@@ -925,6 +935,7 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
       setRemindersEnabled: (remindersEnabled) => set((s) => ({ ...s, remindersEnabled })),
       setCalendarSyncEnabled: (calendarSyncEnabled) => set((s) => ({ ...s, calendarSyncEnabled })),
       setLiveActivityEnabled: (liveActivityEnabled) => set((s) => ({ ...s, liveActivityEnabled })),
+      setOpenNowOnLaunch: (openNowOnLaunch) => set((s) => ({ ...s, openNowOnLaunch })),
       dismissRolloverBanner: () =>
         set((s) => ({
           ...s,
@@ -945,6 +956,10 @@ export function useDayflow() {
 
 export function useVisualMode(): VisualMode {
   return useContext(DayflowContext)?.visualMode ?? 'playful';
+}
+
+export function useAppearance(): Appearance {
+  return useContext(DayflowContext)?.appearance ?? 'system';
 }
 
 export function useThemeId(): ThemeId {

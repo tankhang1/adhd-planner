@@ -176,7 +176,7 @@ export default function FocusScreen() {
           <>
             <View style={styles.timerWrap}>
               <Svg width={RING_SIZE} height={RING_SIZE} accessibilityLabel={tr('focus.progressA11y')}>
-                <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RADIUS} stroke="rgba(255,255,255,0.75)" strokeWidth={STROKE} fill="none" />
+                <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RADIUS} stroke={colors.onTone} strokeWidth={STROKE} fill="none" />
                 <Circle
                   cx={RING_SIZE / 2}
                   cy={RING_SIZE / 2}

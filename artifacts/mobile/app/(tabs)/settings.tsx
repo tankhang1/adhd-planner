@@ -111,7 +111,7 @@ export default function SettingsScreen() {
     language,
     visualMode, setVisualMode, remindersEnabled, setRemindersEnabled,
     calendarSyncEnabled, setCalendarSyncEnabled, resetOnboarding,
-    liveActivityEnabled, setLiveActivityEnabled,
+    liveActivityEnabled, setLiveActivityEnabled, appearance, setAppearance, openNowOnLaunch, setOpenNowOnLaunch,
     reminderLead, setReminderLead, quietStart, quietEnd, setQuietHours, profile,
     bufferMinutes, setBufferMinutes, timeLog,
   } = useDayflow();
@@ -223,6 +223,26 @@ export default function SettingsScreen() {
           selected={visualMode === 'focused'}
           onPress={() => setVisualMode('focused')}
         />
+        <View style={[styles.subPanel, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 0 }]}>
+          <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>{t('settings.appearance')}</Text>
+          <View style={styles.chipRow}>
+            {(['system', 'light', 'dark'] as const).map((a) => {
+              const sel = appearance === a;
+              return (
+                <Pressable
+                  key={a}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: sel }}
+                  onPress={() => setAppearance(a)}
+                  testID={`appearance-mode-${a}`}
+                  style={[styles.chip, { backgroundColor: sel ? colors.primary : colors.muted }]}
+                >
+                  <Text style={{ color: sel ? colors.primaryForeground : colors.foreground, fontWeight: '700' }}>{t(`settings.appearance_${a}`)}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
         <ThemePicker />
       </View>
 
@@ -297,6 +317,14 @@ export default function SettingsScreen() {
           value={calendarSyncEnabled}
           onChange={(v) => void toggleCalendar(v)}
           testID="toggle-calendar"
+        />
+        <ToggleRow
+          icon="maximize"
+          title={t('settings.openNow')}
+          subtitle={t('settings.openNowSub')}
+          value={openNowOnLaunch}
+          onChange={setOpenNowOnLaunch}
+          testID="toggle-open-now"
         />
         {Platform.OS === 'ios' ? (
           <ToggleRow
