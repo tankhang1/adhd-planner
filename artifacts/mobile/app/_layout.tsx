@@ -18,7 +18,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { DayflowProvider, toDateKey, useDayflow } from '@/context/DayflowContext';
 import { ProProvider, usePro } from '@/context/ProContext';
 import { addReminderTapListener, syncReminders } from '@/services/reminders';
-import { syncWidgets } from '@/services/widgets';
+import { drainPendingInbox, syncWidgets } from '@/services/widgets';
 import { AnimatedSplash } from '@/components/AnimatedSplash';
 import { StatusBar } from 'expo-status-bar';
 import { useColors } from '@/hooks/useColors';
@@ -41,7 +41,7 @@ const minutesNow = () => {
 function AppEffects() {
   const {
     hydrated, onboarded, dayTasks, remindersEnabled, liveActivityEnabled,
-    reminderLead, quietStart, quietEnd, extendTask, toggleDayTask, language, openNowOnLaunch,
+    reminderLead, quietStart, quietEnd, extendTask, toggleDayTask, language, openNowOnLaunch, addInboxTask,
   } = useDayflow();
   const segments = useSegments();
   const { isPro } = usePro();
@@ -71,6 +71,19 @@ function AppEffects() {
       clearInterval(i);
     };
   }, [hydrated, dayTasks, liveActivityEnabled, isPro, language]);
+
+  // Siri / Shortcuts "Add to Dayflow": move thoughts saved while the app was closed into the Inbox.
+  const addInboxRef = React.useRef(addInboxTask);
+  addInboxRef.current = addInboxTask;
+  useEffect(() => {
+    if (!hydrated) return;
+    const drain = () => drainPendingInbox().forEach((title) => addInboxRef.current(title));
+    drain();
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') drain();
+    });
+    return () => sub.remove();
+  }, [hydrated]);
 
   // Now view: when the app opens (or comes back) while a block is running, jump straight
   // to the calm full-screen timer. Once per block, never over another screen or onboarding.
@@ -148,6 +161,7 @@ function RootLayoutNav() {
       <Stack.Screen name="nudges" options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="routine-edit" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+      <Stack.Screen name="ai-plan" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="insights" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="pro" options={{ headerShown: false, animation: 'none' }} />
     </Stack>

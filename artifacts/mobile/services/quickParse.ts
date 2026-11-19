@@ -10,6 +10,8 @@ export interface QuickParse {
   duration: number | null;
   /** 0 = today, 1 = tomorrow. */
   dayOffset: 0 | 1;
+  /** Weekdays (0 = Sunday) to repeat on, for habits typed like "meds 8am every day". */
+  repeatDays: number[];
 }
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -74,12 +76,26 @@ function findTime(text: string): { start: number; match: string } | null {
   return null;
 }
 
+const DAILY = /(?:^|\s)(every ?day|daily|each day|jeden tag|täglich|mỗi ngày|hằng ngày|hàng ngày|毎日|매일)(?=\s|$)/i;
+const WEEKDAYS = /(?:^|\s)(weekdays|every weekday|werktags|ngày thường|các ngày trong tuần|平日|평일)(?=\s|$)/i;
+const WEEKENDS = /(?:^|\s)(weekends|every weekend|am wochenende|cuối tuần|週末|주말)(?=\s|$)/i;
+
 const TOMORROW = /(?:^|\s)(tomorrow|tmr|morgen|明日|あした|내일|ngày mai)(?=\s|$)/i;
 const TODAY = /(?:^|\s)(today|heute|今日|きょう|오늘|hôm nay)(?=\s|$)/i;
 
 export function parseQuickAdd(input: string): QuickParse {
   let text = ` ${input.trim()} `;
   let dayOffset: 0 | 1 = 0;
+
+  let repeatDays: number[] = [];
+  for (const [re, days] of [[DAILY, [0, 1, 2, 3, 4, 5, 6]], [WEEKDAYS, [1, 2, 3, 4, 5]], [WEEKENDS, [0, 6]]] as const) {
+    const m = text.match(re);
+    if (m) {
+      repeatDays = [...days];
+      text = text.replace(m[0], ' ');
+      break;
+    }
+  }
 
   const tm = text.match(TOMORROW);
   if (tm) {
@@ -119,5 +135,6 @@ export function parseQuickAdd(input: string): QuickParse {
     start: time ? Math.round(time.start / 5) * 5 : null,
     duration: duration ? clamp(Math.round(duration / 5) * 5 || 5, 5, 12 * 60) : null,
     dayOffset,
+    repeatDays,
   };
 }

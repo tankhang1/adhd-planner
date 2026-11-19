@@ -165,7 +165,7 @@ export default function RoutinesScreen() {
   const colors = useColors();
   const newRoutine = async () => {
     if (!isPro && routines.length >= FREE_ROUTINES) {
-      const ok = await offerPro(tr('settings.proRoutinesTitle'), tr('settings.proRoutinesBody', { count: FREE_ROUTINES }));
+      const ok = await offerPro(tr('settings.proRoutinesTitle'), tr('settings.proRoutinesBody', { count: FREE_ROUTINES }), 'routines');
       if (!ok) return;
     }
     router.push('/routine-edit');

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { GestureDetector, ScrollView, usePanGesture } from 'react-native-gesture-handler';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
+import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -24,6 +25,10 @@ import type { DayTask } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
 import { ActivityIcon } from '@/components/ActivityIcon';
 import { QuickAddBar } from '@/components/QuickAddBar';
+import { aiAvailable } from '@/services/ai';
+import { usePro } from '@/context/ProContext';
+import { maybeAskForReview } from '@/services/review';
+import { readFlag, writeFlag } from '@/lib/storage';
 
 type Colors = ReturnType<typeof useColors>;
 const PX_PER_MIN = 1.5;
@@ -293,98 +298,70 @@ function NowCard({ tasks, now }: { tasks: DayTask[]; now: number }) {
 
 /* ------------------------------ Timeline -------------------------------- */
 
-/** Drag distance → minutes, snapped to 5. */
-const snapMinutes = (dy: number) => Math.round(dy / PX_PER_MIN / 5) * 5;
-
 function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; onToggle: () => void }) {
   const colors = useColors();
-  const { updateDayTask } = useDayflow();
+  const { removeDayTask } = useDayflow();
   const ink = inkFor(colors, task.tone);
   const quiet = useVisualMode() === 'focused';
+  const swipeRef = React.useRef<SwipeableMethods>(null);
+  const openEditor = () => router.push({ pathname: '/add-task', params: { id: task.id } });
 
-  // Long-press + drag moves the block; dragging the bottom grip changes its length.
-  // A long-press without moving still opens the editor.
-  const [drag, setDrag] = useState<{ mode: 'move' | 'resize'; dy: number } | null>(null);
-  const lastSnap = React.useRef(0);
-  const tick = (dy: number) => {
-    const m = snapMinutes(dy);
-    if (m !== lastSnap.current) {
-      lastSnap.current = m;
-      void Haptics.selectionAsync();
+  /** Swipe left → Delete. Repeating tasks ask: just today, or the whole habit. */
+  const remove = () => {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    if (task.seriesId) {
+      Alert.alert(t('today.deleteRepeatTitle'), task.title, [
+        { text: t('common.cancel'), style: 'cancel', onPress: () => swipeRef.current?.close() },
+        { text: t('today.deleteOnlyToday'), onPress: () => removeDayTask(task.id, 'one') },
+        { text: t('today.deleteAll'), style: 'destructive', onPress: () => removeDayTask(task.id, 'series') },
+      ]);
+      return;
     }
+    removeDayTask(task.id, 'one');
   };
-  const newStart = (dy: number) => Math.min(24 * 60 - task.duration, Math.max(0, task.start + snapMinutes(dy)));
-  const newDuration = (dy: number) => Math.min(12 * 60, Math.max(5, task.duration + snapMinutes(dy)));
-  const moveGesture = usePanGesture({
-    activateAfterLongPress: 350,
-    runOnJS: true,
-    onActivate: () => {
-      lastSnap.current = 0;
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setDrag({ mode: 'move', dy: 0 });
-    },
-    onUpdate: (e) => {
-      tick(e.translationY);
-      setDrag({ mode: 'move', dy: e.translationY });
-    },
-    onDeactivate: (e) => {
-      setDrag(null);
-      if (e.canceled) return;
-      if (Math.abs(snapMinutes(e.translationY)) < 5) {
-        router.push({ pathname: '/add-task', params: { id: task.id } });
-        return;
-      }
-      updateDayTask(task.id, { start: newStart(e.translationY) }, 'one');
-    },
-    onFinalize: () => setDrag(null),
-  });
-  const resizeGesture = usePanGesture({
-    runOnJS: true,
-    activeOffsetY: [-4, 4],
-    onActivate: () => {
-      lastSnap.current = 0;
-      setDrag({ mode: 'resize', dy: 0 });
-    },
-    onUpdate: (e) => {
-      tick(e.translationY);
-      setDrag({ mode: 'resize', dy: e.translationY });
-    },
-    onDeactivate: (e) => {
-      setDrag(null);
-      if (!e.canceled && Math.abs(snapMinutes(e.translationY)) >= 5) {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        updateDayTask(task.id, { duration: newDuration(e.translationY) }, 'one');
-      }
-    },
-    onFinalize: () => setDrag(null),
-  });
-  const moving = drag?.mode === 'move';
-  const resizing = drag?.mode === 'resize';
-  const previewDuration = resizing ? newDuration(drag.dy) : task.duration;
-  const height = quiet ? MIN_BLOCK - 8 : Math.max(MIN_BLOCK, previewDuration * PX_PER_MIN);
+  const height = quiet ? MIN_BLOCK - 8 : Math.max(MIN_BLOCK, task.duration * PX_PER_MIN);
   const active = now >= task.start && now < task.start + task.duration;
   const past = now >= task.start + task.duration;
   const fill = active ? (now - task.start) / task.duration : 0;
 
   return (
-    <View
-      style={[
-        styles.row,
-        moving && { transform: [{ translateY: drag.dy }, { scale: 1.02 }], zIndex: 10, ...styles.lifted },
-        resizing && { zIndex: 10 },
-      ]}
-    >
+    <View style={styles.row}>
       <View style={styles.timeCol}>
-        <Text maxFontSizeMultiplier={1.3} style={[styles.timeText, { color: active || drag ? ink : colors.mutedForeground }]}>
-          {formatMinutes(moving ? newStart(drag.dy) : task.start)}
+        <Text maxFontSizeMultiplier={1.3} style={[styles.timeText, { color: active ? ink : colors.mutedForeground }]}>
+          {formatMinutes(task.start)}
         </Text>
       </View>
-      <GestureDetector gesture={moveGesture}>
+      <ReanimatedSwipeable
+        ref={swipeRef}
+        containerStyle={styles.swipe}
+        friction={1.6}
+        rightThreshold={60}
+        overshootRight={false}
+        renderRightActions={() => (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('today.delete')}
+            onPress={remove}
+            testID={`delete-${task.id}`}
+            style={[styles.deleteAction, { backgroundColor: colors.destructive }]}
+          >
+            <Feather name="trash-2" size={20} color="#FFFFFF" />
+            <Text style={styles.deleteText}>{t('today.delete')}</Text>
+          </Pressable>
+        )}
+      >
+      {/* Opaque backing so faded (past/done) blocks never show the Delete action through them. */}
+      <View style={[styles.swipeBacking, { backgroundColor: colors.background }]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t('today.blockA11y', { title: task.title, time: formatMinutes(task.start), count: task.duration })}
         accessibilityHint={t('today.blockHint')}
         onPress={() => router.push({ pathname: '/focus', params: { taskId: task.id } })}
+        onLongPress={() => {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          openEditor();
+        }}
+        delayLongPress={350}
         testID={`task-${task.id}`}
         style={({ pressed }) => [
           styles.block,
@@ -392,12 +369,12 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
             minHeight: height,
             backgroundColor: quiet ? colors.card : colors[task.tone],
             opacity: pressed ? 0.85 : task.done || past ? 0.6 : 1,
-            borderColor: active ? ink : quiet ? colors.border : 'transparent',
-            borderWidth: quiet && !active ? 1 : 2,
+            // Calm mode: plain card, no outline or side stripe. Only the running block gets a ring.
+            borderColor: active ? ink : 'transparent',
+            borderWidth: 2,
           },
         ]}
       >
-        {quiet ? <View style={[styles.quietStripe, { backgroundColor: ink }]} /> : null}
         <View style={[styles.blockIcon, { backgroundColor: quiet ? colors[task.tone] : colors.card }]}>
           <ActivityIcon name={task.icon} size={21} color={ink} />
         </View>
@@ -450,34 +427,9 @@ function TimelineBlock({ task, now, onToggle }: { task: DayTask; now: number; on
         >
           {task.done ? <Feather name="check" size={15} color="#FFFFFF" /> : null}
         </Pressable>
-        {drag ? (
-          <View style={[styles.dragPill, { backgroundColor: ink }]} pointerEvents="none">
-            <Text style={styles.dragPillText}>
-              {moving
-                ? `${formatMinutes(newStart(drag.dy))} – ${formatMinutes(newStart(drag.dy) + task.duration)}`
-                : formatDuration(previewDuration)}
-            </Text>
-          </View>
-        ) : null}
-        {!quiet && !task.done ? (
-          <GestureDetector gesture={resizeGesture}>
-            <View
-              style={styles.resizeHit}
-              accessibilityRole="adjustable"
-              accessibilityLabel={t('today.resizeA11y', { title: task.title })}
-              accessibilityValue={{ text: formatDuration(task.duration) }}
-              accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-              onAccessibilityAction={(e) =>
-                updateDayTask(task.id, { duration: Math.max(5, task.duration + (e.nativeEvent.actionName === 'increment' ? 5 : -5)) }, 'one')
-              }
-              testID={`resize-${task.id}`}
-            >
-              <View style={[styles.resizeGrip, { backgroundColor: ink, opacity: resizing ? 0.9 : 0.35 }]} />
-            </View>
-          </GestureDetector>
-        ) : null}
       </Pressable>
-      </GestureDetector>
+      </View>
+      </ReanimatedSwipeable>
     </View>
   );
 }
@@ -697,8 +649,9 @@ export default function TodayScreen() {
     dayTasks, toggleDayTask, tasksFor, selectedDate, setSelectedDate,
     rolledOverCount, dismissRolloverBanner, calendarSyncEnabled,
     awayDays, dismissWelcomeBack, moveRolledOverToInbox,
-    isSurvivalDay, energyFor, startSurvivalDay, lightenDay,
+    isSurvivalDay, energyFor, startSurvivalDay, lightenDay, showUpDays,
   } = useDayflow();
+  const { isPro, showPaywall } = usePro();
   const [overwhelmOpen, setOverwhelmOpen] = useState(false);
   const [clock, setClock] = useState(() => new Date());
 
@@ -745,6 +698,15 @@ export default function TodayScreen() {
       setTimeout(() => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 180);
       setBigCelebration(true);
       setCelebration(t('today.celebrateAllDone'));
+      // A finished day is the happiest moment: ask for a rating (paced), and show free
+      // users what Pro adds once, after the celebration fades.
+      setTimeout(() => {
+        void maybeAskForReview(showUpDays.length);
+        if (!isPro && !readFlag('winPaywallShown')) {
+          writeFlag('winPaywallShown', '1');
+          setTimeout(() => void showPaywall('win'), 1500);
+        }
+      }, 2800);
       return;
     }
     setBigCelebration(false);
@@ -806,6 +768,18 @@ export default function TodayScreen() {
                   style={({ pressed }) => [styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
                 >
                   <MaterialCommunityIcons name="lifebuoy" size={18} color={colors.roseInk} />
+                </Pressable>
+              ) : null}
+              {isToday && aiAvailable() ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('ai.planTitle')}
+                  onPress={() => router.push('/ai-plan')}
+                  hitSlop={8}
+                  testID="open-ai-plan"
+                  style={({ pressed }) => [styles.iconBtn, { backgroundColor: colors.secondary, borderColor: colors.secondary, opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <MaterialCommunityIcons name="creation" size={18} color={colors.primary} />
                 </Pressable>
               ) : null}
               <Pressable
@@ -965,6 +939,22 @@ export default function TodayScreen() {
               <CloudBuddy mood="hello" size={110} />
               <Text style={[styles.section, { color: colors.foreground }]}>{t('today.emptyTitle')}</Text>
               <Text style={{ color: colors.mutedForeground }}>{t('today.emptyBody')}</Text>
+              {selectedDate >= todayKey() ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.push('/add-task')}
+                  testID="empty-add"
+                  style={({ pressed }) => [styles.emptyCta, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+                >
+                  <Feather name="plus" size={16} color={colors.primaryForeground} />
+                  <Text style={[styles.emptyCtaText, { color: colors.primaryForeground }]}>{t('today.emptyAdd')}</Text>
+                </Pressable>
+              ) : null}
+              {selectedDate >= todayKey() ? (
+                <Text style={[styles.emptyHint, { color: colors.mutedForeground }]}>
+                  <Feather name="repeat" size={11} /> {t('today.emptyHabitHint')}
+                </Text>
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -1035,7 +1025,16 @@ export default function TodayScreen() {
         />
       </BuddyDialog>
 
-      {showWeekly && reviewWeek ? <WeeklyReview monday={reviewWeek} onClose={() => setWeeklyClosed(true)} /> : null}
+      {showWeekly && reviewWeek ? (
+        <WeeklyReview
+          monday={reviewWeek}
+          onClose={() => {
+            setWeeklyClosed(true);
+            // Right after a kind look-back is a good moment to ask for a rating.
+            setTimeout(() => void maybeAskForReview(showUpDays.length), 800);
+          }}
+        />
+      ) : null}
 
       <EnergyCheckIn
         blocked={showWelcome || showWeekly}
@@ -1118,11 +1117,10 @@ const styles = StyleSheet.create({
   blockTitle: { fontSize: 15, lineHeight: 20, fontWeight: '700' },
   blockMeta: { fontSize: 12, fontWeight: '500' },
   done: { textDecorationLine: 'line-through' },
-  lifted: { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
-  dragPill: { position: 'absolute', top: 8, right: 44, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  dragPillText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
-  resizeHit: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 18, alignItems: 'center', justifyContent: 'center' },
-  resizeGrip: { width: 36, height: 4, borderRadius: 2 },
+  swipe: { flex: 1, borderRadius: 22 },
+  swipeBacking: { flex: 1, borderRadius: 22 },
+  deleteAction: { width: 92, marginLeft: 8, borderRadius: 22, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  deleteText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
   check: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   nowLineRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   nowPill: { width: 62, paddingVertical: 4, borderRadius: 999, alignItems: 'center' },
@@ -1138,7 +1136,6 @@ const styles = StyleSheet.create({
   allDayText: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
   calBlock: { borderWidth: 1, borderStyle: 'dashed', paddingLeft: 18 },
   calStripe: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 },
-  quietStripe: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 },
   summary: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingLeft: 8, paddingRight: 14, borderRadius: 20, borderWidth: 1 },
   summaryTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   summaryIcon: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
@@ -1172,6 +1169,9 @@ const styles = StyleSheet.create({
   helperIcon: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   helperTitle: { fontSize: 15, fontWeight: '800' },
   helperSub: { fontSize: 12, lineHeight: 16, marginTop: 1 },
+  emptyHint: { fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 2 },
+  emptyCta: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 999, marginTop: 6 },
+  emptyCtaText: { fontSize: 14, fontWeight: '800' },
   empty: { alignItems: 'center', gap: 8, padding: 28, borderRadius: 24, borderWidth: 1 },
   fab: {
     position: 'absolute',

@@ -10,7 +10,7 @@ import { tr } from '@/i18n';
 import { applyAppIcon } from '@/services/appIcon';
 
 /** Pro accent themes, each with a matching app icon. Free users see them locked. */
-export function ThemePicker() {
+export function ThemePicker({ bare = false }: { bare?: boolean } = {}) {
   const colors = useColors();
   const { theme, setTheme } = useDayflow();
   const { isPro, offerPro } = usePro();
@@ -18,7 +18,7 @@ export function ThemePicker() {
   const pick = async (t: AccentTheme) => {
     if (t.id === theme) return;
     if (t.id !== 'violet' && !isPro) {
-      const ok = await offerPro(tr('settings.themeTitle'), tr('settings.proThemesBody'));
+      const ok = await offerPro(tr('settings.themeTitle'), tr('settings.proThemesBody'), 'themes');
       if (!ok) return;
     }
     void Haptics.selectionAsync();
@@ -27,7 +27,7 @@ export function ThemePicker() {
   };
 
   return (
-    <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View style={bare ? styles.bare : [styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.head}>
         <Text style={[styles.title, { color: colors.foreground }]}>{tr('settings.themeTitle')}</Text>
         {!isPro ? (
@@ -71,6 +71,7 @@ export function ThemePicker() {
 
 const styles = StyleSheet.create({
   panel: { borderRadius: 20, borderWidth: 1, padding: 16, gap: 6 },
+  bare: { gap: 6 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { fontFamily: 'Inter_700Bold', fontSize: 16 },
   sub: { fontFamily: 'Inter_400Regular', fontSize: 13 },

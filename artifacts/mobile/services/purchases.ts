@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import Purchases, { LOG_LEVEL, type CustomerInfo, type PurchasesOfferings } from 'react-native-purchases';
 import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
+import { readFlag, writeFlag } from '@/lib/storage';
 
 /** Entitlement that unlocks Dayflow Pro (configured in the RevenueCat dashboard). */
 export const PRO_ENTITLEMENT = 'dayflow_adhd_visual_planner_pro';
@@ -56,16 +57,53 @@ export async function getOfferings(): Promise<PurchasesOfferings | null> {
 }
 
 /**
+ * Where a paywall was opened from. Create matching Placements in the RevenueCat
+ * dashboard to show a tailored paywall per moment; unknown placements fall back
+ * to the current offering.
+ */
+export type PaywallPlacement =
+  | 'onboarding'
+  | 'settings'
+  | 'widget'
+  | 'routines'
+  | 'recurring'
+  | 'trips'
+  | 'live_activity'
+  | 'insights'
+  | 'themes'
+  | 'focus_sounds'
+  | 'ai'
+  | 'win'
+  | 'winback';
+
+async function offeringFor(placement?: PaywallPlacement) {
+  if (!placement) return undefined;
+  try {
+    return (await Purchases.getCurrentOfferingForPlacement(placement)) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Offering targeted at returning free users (e.g. a discounted yearly), if one is set up. */
+export async function winbackOffering() {
+  const o = await offeringFor('winback');
+  return o && o.identifier.toLowerCase().includes('winback') ? o : undefined;
+}
+
+/**
  * Shows the RevenueCat Paywall only if the user isn't Pro yet.
  * Returns true when the user has Pro afterwards (purchased, restored, or already had it).
  */
-export async function presentPaywall(): Promise<boolean> {
+export async function presentPaywall(placement?: PaywallPlacement): Promise<boolean> {
   if (!configured) return false;
   try {
     const result = await RevenueCatUI.presentPaywallIfNeeded({
       requiredEntitlementIdentifier: PRO_ENTITLEMENT,
       displayCloseButton: true,
+      offering: await offeringFor(placement),
     });
+    if (result === PAYWALL_RESULT.CANCELLED) notePaywallDismissed();
     return (
       result === PAYWALL_RESULT.PURCHASED ||
       result === PAYWALL_RESULT.RESTORED ||
@@ -76,6 +114,21 @@ export async function presentPaywall(): Promise<boolean> {
     return false;
   }
 }
+
+function notePaywallDismissed() {
+  const n = Number(readFlag('paywallDismissed') ?? 0) + 1;
+  writeFlag('paywallDismissed', String(n));
+  if (!readFlag('paywallFirstDismissedAt')) writeFlag('paywallFirstDismissedAt', String(Date.now()));
+}
+
+/** Free users who closed the paywall twice, 3+ days ago, get one gentle win-back offer. */
+export function shouldOfferWinback() {
+  if (readFlag('winbackShown')) return false;
+  const n = Number(readFlag('paywallDismissed') ?? 0);
+  const first = Number(readFlag('paywallFirstDismissedAt') ?? 0);
+  return n >= 2 && first > 0 && Date.now() - first >= 3 * 864e5;
+}
+export const markWinbackShown = () => writeFlag('winbackShown', String(Date.now()));
 
 /** Customer Center: manage / cancel / restore / request refund. */
 export async function presentCustomerCenter() {
@@ -104,3 +157,4 @@ export function addCustomerInfoListener(cb: (info: CustomerInfo) => void) {
     Purchases.removeCustomerInfoUpdateListener(cb);
   };
 }
+

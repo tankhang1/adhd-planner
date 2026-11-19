@@ -76,7 +76,7 @@ export default function AddTaskScreen() {
     // Starting a new repeating series is limited on the free plan.
     const newSeries = repeatDays.length > 0 && !series;
     if (newSeries && !isPro && recurring.length >= FREE_RECURRING) {
-      const ok = await offerPro(tr('settings.proRecurringTitle'), tr('settings.proRecurringBody', { count: FREE_RECURRING }));
+      const ok = await offerPro(tr('settings.proRecurringTitle'), tr('settings.proRecurringBody', { count: FREE_RECURRING }), 'recurring');
       if (!ok) return;
     }
     const fields = { title, start, duration, tone, icon, essential: essentialFlag, travel, prep: travel ? prep : 0 };
@@ -120,9 +120,16 @@ export default function AddTaskScreen() {
           <Text style={[styles.topBtn, { color: colors.mutedForeground }]}>{tr('common.cancel')}</Text>
         </Pressable>
         <Text style={[styles.topTitle, { color: colors.foreground }]}>{existing ? tr('addTask.editTitle') : tr('addTask.newTitle')}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={tr('addTask.saveA11y')} disabled={!canSave} onPress={save} hitSlop={12} testID="save-add">
-          <Text style={[styles.topBtn, { color: colors.primary, opacity: canSave ? 1 : 0.4, fontWeight: '700' }]}>{tr('common.save')}</Text>
-        </Pressable>
+        <View style={styles.topRight}>
+          {existing ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={tr('addTask.remove')} onPress={remove} hitSlop={12} testID="remove-task-top">
+              <Feather name="trash-2" size={19} color={colors.destructive} />
+            </Pressable>
+          ) : null}
+          <Pressable accessibilityRole="button" accessibilityLabel={tr('addTask.saveA11y')} disabled={!canSave} onPress={save} hitSlop={12} testID="save-add">
+            <Text style={[styles.topBtn, { color: colors.primary, opacity: canSave ? 1 : 0.4, fontWeight: '700' }]}>{tr('common.save')}</Text>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
@@ -261,7 +268,7 @@ export default function AddTaskScreen() {
                 if (on && !isPro) {
                   const trips = dayTasks.filter((t) => t.date === date && (t.travel ?? 0) > 0 && t.id !== existing?.id).length;
                   if (trips >= FREE_TRIPS_PER_DAY) {
-                    const ok = await offerPro(tr('settings.proTripsTitle'), tr('settings.proTripsBody', { count: FREE_TRIPS_PER_DAY }));
+                    const ok = await offerPro(tr('settings.proTripsTitle'), tr('settings.proTripsBody', { count: FREE_TRIPS_PER_DAY }), 'trips');
                     if (!ok) return;
                   }
                 }
@@ -369,6 +376,7 @@ export default function AddTaskScreen() {
 }
 
 const styles = StyleSheet.create({
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   screen: { flex: 1 },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },
   topBtn: { fontSize: 16 },

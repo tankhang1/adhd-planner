@@ -6,12 +6,12 @@ import { buildWidgetPayload, currentAndNext } from './widgetData';
 export const APP_GROUP = 'group.com.nexa.dayflow';
 
 type ExtensionStorageCtor = {
-  new (group: string): { set: (key: string, value: string) => void };
+  new (group: string): { set: (key: string, value: string) => void; get: (key: string) => string | null; remove: (key: string) => void };
   reloadWidget: (name?: string) => void;
 };
 
 // Loaded lazily so Expo Go / web don't crash when the native module is absent.
-let storage: { set: (k: string, v: string) => void } | null = null;
+let storage: { set: (k: string, v: string) => void; get: (k: string) => string | null; remove: (k: string) => void } | null = null;
 let Storage: ExtensionStorageCtor | null = null;
 function iosStorage() {
   if (Platform.OS !== 'ios') return null;
@@ -83,3 +83,18 @@ export async function syncWidgets(tasks: DayTask[], liveActivityEnabled: boolean
 }
 
 export const liveActivitySupported = () => LiveActivity.isSupported();
+
+/** Thoughts saved via Siri / Shortcuts ("Add to Dayflow") while the app was closed. */
+export function drainPendingInbox(): string[] {
+  const s = iosStorage();
+  if (!s) return [];
+  try {
+    const raw = s.get('pendingInbox');
+    if (!raw) return [];
+    s.remove('pendingInbox');
+    const list = JSON.parse(raw) as unknown;
+    return Array.isArray(list) ? list.filter((x): x is string => typeof x === 'string' && x.trim().length > 0) : [];
+  } catch {
+    return [];
+  }
+}

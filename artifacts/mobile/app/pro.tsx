@@ -9,7 +9,7 @@ export default function ProRoute() {
   const { showPaywall } = usePro();
   const colors = useColors();
   useEffect(() => {
-    void showPaywall().finally(() => router.replace('/(tabs)'));
+    void showPaywall('widget').finally(() => router.replace('/(tabs)'));
   }, [showPaywall]);
   return <View style={{ flex: 1, backgroundColor: colors.background }} />;
 }

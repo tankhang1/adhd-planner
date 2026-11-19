@@ -6,6 +6,10 @@ import { TASK_TONES, formatMinutes, fromDateKey, toDateKey, todayKey, useDayflow
 import { useColors } from '@/hooks/useColors';
 import { formatDuration, tr } from '@/i18n';
 import { parseQuickAdd } from '@/services/quickParse';
+import { usePro } from '@/context/ProContext';
+import { FREE_RECURRING } from '@/lib/limits';
+
+const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
 
 const DEFAULT_DURATION = 30;
 
@@ -17,7 +21,10 @@ const nextQuarter = () => {
 /** One line → one activity. "gym 6pm 45m" lands on the timeline without opening a form. */
 export function QuickAddBar({ date }: { date: string }) {
   const colors = useColors();
-  const { addDayTask, nextFreeStart, dayTasks } = useDayflow();
+  const { addDayTask, nextFreeStart, dayTasks, recurring } = useDayflow();
+  const { isPro, offerPro } = usePro();
+  /** Manual override of the repeat chip; null = follow what was typed. */
+  const [repeatOverride, setRepeatOverride] = useState<boolean | null>(null);
   const [text, setText] = useState('');
   const parsed = useMemo(() => parseQuickAdd(text), [text]);
 
@@ -32,10 +39,21 @@ export function QuickAddBar({ date }: { date: string }) {
     parsed.start ?? nextFreeStart(targetDate, targetDate === todayKey() ? nextQuarter() : 8 * 60);
   const duration = parsed.duration ?? DEFAULT_DURATION;
   const ready = parsed.title.length > 0;
+  const repeatDays = repeatOverride === null ? parsed.repeatDays : repeatOverride ? (parsed.repeatDays.length ? parsed.repeatDays : EVERY_DAY) : [];
+  const repeatLabel =
+    repeatDays.length === 7 ? tr('addTask.repeatDaily')
+    : repeatDays.length === 5 ? tr('addTask.repeatWeekdays')
+    : repeatDays.length === 2 ? tr('addTask.repeatWeekends')
+    : tr('quickAdd.repeat');
 
-  const submit = () => {
+  const submit = async () => {
     if (!ready) return;
+    if (repeatDays.length && !isPro && recurring.length >= FREE_RECURRING) {
+      const ok = await offerPro(tr('settings.proRecurringTitle'), tr('settings.proRecurringBody', { count: FREE_RECURRING }), 'recurring');
+      if (!ok) return;
+    }
     addDayTask({
+      repeatDays,
       title: parsed.title,
       start,
       duration,
@@ -46,6 +64,7 @@ export function QuickAddBar({ date }: { date: string }) {
     });
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setText('');
+    setRepeatOverride(null);
   };
 
   return (
@@ -55,7 +74,7 @@ export function QuickAddBar({ date }: { date: string }) {
         <TextInput
           value={text}
           onChangeText={setText}
-          onSubmitEditing={submit}
+          onSubmitEditing={() => void submit()}
           placeholder={tr('quickAdd.placeholder')}
           placeholderTextColor={colors.mutedForeground}
           returnKeyType="done"
@@ -68,7 +87,7 @@ export function QuickAddBar({ date }: { date: string }) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={tr('quickAdd.add')}
-            onPress={submit}
+            onPress={() => void submit()}
             hitSlop={8}
             testID="quick-add-submit"
             style={({ pressed }) => [styles.send, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
@@ -82,6 +101,19 @@ export function QuickAddBar({ date }: { date: string }) {
           {parsed.dayOffset ? <Chip icon="sunrise" label={tr('quickAdd.tomorrow')} /> : null}
           <Chip icon="clock" label={formatMinutes(start)} guessed={parsed.start == null} />
           <Chip icon="watch" label={formatDuration(duration)} guessed={parsed.duration == null} />
+          <Pressable
+            accessibilityRole="switch"
+            accessibilityState={{ checked: repeatDays.length > 0 }}
+            accessibilityLabel={tr('quickAdd.repeat')}
+            onPress={() => {
+              void Haptics.selectionAsync();
+              setRepeatOverride(!(repeatDays.length > 0));
+            }}
+            hitSlop={6}
+            testID="quick-add-repeat"
+          >
+            <Chip icon="repeat" label={repeatLabel} guessed={repeatDays.length === 0} />
+          </Pressable>
         </View>
       ) : null}
     </View>

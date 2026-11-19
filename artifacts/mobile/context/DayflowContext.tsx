@@ -481,38 +481,9 @@ export function buildStarterDay(profile: Profile, date: string): DayTask[] {
 /** Built lazily so starter content uses the language detected at launch. */
 const makeInitialState = (): DayflowState => ({
   dayTasks: [],
-  inboxTasks: [
-    { id: 'inbox-1', title: tr('seed.inboxDentist'), done: false },
-    { id: 'inbox-2', title: tr('seed.inboxLaundry'), done: false },
-    { id: 'inbox-3', title: tr('seed.inboxUpdate'), done: false },
-  ],
-  routines: [
-    {
-      id: 'morning',
-      title: tr('seed.routineMorning'),
-      subtitle: tr('seed.routineMorningSub'),
-      tone: 'lemon',
-      icon: 'weather-sunny',
-      steps: [
-        { id: 'm-1', title: tr('seed.stepMeds'), duration: 2, done: false },
-        { id: 'm-2', title: tr('seed.stepCurtains'), duration: 2, done: false },
-        { id: 'm-3', title: tr('seed.stepDressed'), duration: 8, done: false },
-        { id: 'm-4', title: tr('seed.stepChoose'), duration: 3, done: false },
-      ],
-    },
-    {
-      id: 'evening',
-      title: tr('seed.routineEvening'),
-      subtitle: tr('seed.routineEveningSub'),
-      tone: 'lilac',
-      icon: 'weather-night',
-      steps: [
-        { id: 'e-1', title: tr('seed.stepEssentials'), duration: 4, done: false },
-        { id: 'e-2', title: tr('seed.stepSurface'), duration: 5, done: false },
-        { id: 'e-3', title: tr('seed.stepBook'), duration: 10, done: false },
-      ],
-    },
-  ],
+  // Start empty: people add their own plan, inbox and routines.
+  inboxTasks: [],
+  routines: [],
   visualMode: 'playful',
   theme: 'violet',
   appearance: 'system',
@@ -925,12 +896,8 @@ export function DayflowProvider({ children }: { children: ReactNode }) {
       setAppearance: (appearance) => set((s) => ({ ...s, appearance })),
       setActiveRoutineId: (activeRoutineId) => set((s) => ({ ...s, activeRoutineId })),
 
-      completeOnboarding: (profile) =>
-        set((s) => {
-          const today = todayKey();
-          const keep = s.dayTasks.filter((t) => t.date !== today);
-          return { ...s, onboarded: true, profile, dayTasks: [...keep, ...buildStarterDay(profile, today)] };
-        }),
+      // Saves the answers only; never touches the person's own plan.
+      completeOnboarding: (profile) => set((s) => ({ ...s, onboarded: true, profile })),
       resetOnboarding: () => set((s) => ({ ...s, onboarded: false })),
       setRemindersEnabled: (remindersEnabled) => set((s) => ({ ...s, remindersEnabled })),
       setCalendarSyncEnabled: (calendarSyncEnabled) => set((s) => ({ ...s, calendarSyncEnabled })),

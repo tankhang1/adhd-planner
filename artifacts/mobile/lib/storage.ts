@@ -139,3 +139,7 @@ export function readWidgetState(): { dayTasks?: unknown[]; language?: string } {
 const PRO_KEY = 'df.pro';
 export const writeProCache = (pro: boolean) => setRaw(PRO_KEY, pro ? '1' : '0');
 export const readProCache = () => getRaw(PRO_KEY) === '1';
+
+/** Small persisted key/value for app-level flags (paywall/review pacing). */
+export const readFlag = (key: string) => getRaw(`df.flag.${key}`) ?? null;
+export const writeFlag = (key: string, value: string) => setRaw(`df.flag.${key}`, value);

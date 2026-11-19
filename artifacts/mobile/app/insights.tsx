@@ -8,6 +8,33 @@ import type { EnergyLevel } from '@/context/DayflowContext';
 import { useColors } from '@/hooks/useColors';
 import { formatDate, formatDuration, tr, useT } from '@/i18n';
 import { mondayOf, summarizeWeek } from '@/services/weekly';
+import { BlurView } from 'expo-blur';
+import { Feather as Icon } from '@expo/vector-icons';
+import { usePro } from '@/context/ProContext';
+
+/** Pro gate for a card: free users see it blurred with an unlock button on top. */
+function Locked({ locked, children }: { locked: boolean; children: React.ReactNode }) {
+  const colors = useColors();
+  const { showPaywall } = usePro();
+  if (!locked) return <>{children}</>;
+  return (
+    <View style={styles.lockedWrap} accessibilityElementsHidden={false}>
+      <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>{children}</View>
+      <BlurView intensity={colors.dark ? 30 : 22} tint={colors.dark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+      <View style={styles.lockedOverlay}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void showPaywall('insights')}
+          testID="insights-unlock"
+          style={({ pressed }) => [styles.unlock, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+        >
+          <Icon name="lock" size={15} color={colors.primaryForeground} />
+          <Text style={[styles.unlockText, { color: colors.primaryForeground }]}>{tr('insights.unlock')}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
 
 const WEEKS = 6;
 const ENERGY_DAYS = 28;
@@ -18,6 +45,7 @@ export default function InsightsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { timeLog, energyLog, dayTasks, showUpDays } = useDayflow();
+  const { isPro } = usePro();
 
   const tendency = overallTendency(timeLog);
   const patterns = useMemo(
@@ -66,7 +94,7 @@ export default function InsightsScreen() {
         </Pressable>
       </View>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.eyebrow, { color: colors.primary }]}>DAYFLOW PRO</Text>
+        <Text style={[styles.eyebrow, { color: colors.primary }]}>{isPro ? 'DAYFLOW PRO' : tr('insights.previewEyebrow')}</Text>
         <Text style={[styles.title, { color: colors.foreground }]}>{tr('insights.title')}</Text>
         <Text style={[styles.sub, { color: colors.mutedForeground }]}>{tr('insights.sub')}</Text>
 
@@ -84,7 +112,7 @@ export default function InsightsScreen() {
           ) : (
             <Text style={[styles.muted, { color: colors.mutedForeground }]}>{tr('settings.patternEmpty')}</Text>
           )}
-          {patterns.map(({ title, ins }) => {
+          {(isPro ? patterns : patterns.slice(0, 2)).map(({ title, ins }) => {
             const over = ins.typicalActual > ins.typicalPlanned;
             return (
               <View key={title} style={styles.row}>
@@ -99,6 +127,7 @@ export default function InsightsScreen() {
         </View>
 
         {/* Energy history */}
+        <Locked locked={!isPro}>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.foreground }]}>{tr('insights.energyTitle')}</Text>
           <Text style={[styles.muted, { color: colors.mutedForeground }]}>{tr('insights.energySub', { count: ENERGY_DAYS })}</Text>
@@ -123,7 +152,10 @@ export default function InsightsScreen() {
           </View>
         </View>
 
+        </Locked>
+
         {/* Multi-week look-back */}
+        <Locked locked={!isPro}>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.foreground }]}>{tr('insights.weeksTitle')}</Text>
           {weeks.map(({ monday, s }, i) => (
@@ -141,6 +173,7 @@ export default function InsightsScreen() {
           ))}
           <Text style={[styles.muted, { color: colors.mutedForeground }]}>{tr('insights.weeksHint')}</Text>
         </View>
+        </Locked>
       </ScrollView>
     </View>
   );
@@ -169,5 +202,9 @@ const styles = StyleSheet.create({
   weekLabel: { fontFamily: 'Inter_500Medium', fontSize: 12 },
   barTrack: { height: 8, borderRadius: 999, overflow: 'hidden' },
   bar: { height: 8, borderRadius: 999 },
+  lockedWrap: { borderRadius: 22, overflow: 'hidden' },
+  lockedOverlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  unlock: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 999 },
+  unlockText: { fontSize: 14, fontWeight: '800' },
   weekMeta: { fontFamily: 'Inter_500Medium', fontSize: 13 },
 });

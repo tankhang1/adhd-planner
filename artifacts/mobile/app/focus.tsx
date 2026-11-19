@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { goBack } from '@/lib/nav';
 import { Feather } from '@expo/vector-icons';
@@ -13,6 +13,30 @@ import { ActivityIcon } from '@/components/ActivityIcon';
 import { BuddyDialog, DialogButton } from '@/components/BuddyDialog';
 import { tr, useT } from '@/i18n';
 import type { Treat } from '@/context/DayflowContext';
+import { FocusSounds } from '@/components/FocusSounds';
+import { usePro } from '@/context/ProContext';
+import { AiError, aiAvailable, aiBreakDown, type AiStep } from '@/services/ai';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming, Easing } from 'react-native-reanimated';
+
+/** Body double: a little cloud that breathes slowly beside you while you work. */
+function BodyDouble() {
+  const reduce = useReducedMotion();
+  const s = useSharedValue(1);
+  useEffect(() => {
+    if (reduce) return;
+    s.value = withRepeat(withTiming(1.08, { duration: 2400, easing: Easing.inOut(Easing.sin) }), -1, true);
+  }, [reduce, s]);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
+  const colors = useColors();
+  return (
+    <View style={styles.bodyDouble} accessibilityLabel={tr('focus.withYou')}>
+      <Animated.View style={style}>
+        <CloudBuddy mood="okay" size={44} />
+      </Animated.View>
+      <Text style={[styles.bodyDoubleText, { color: colors.mutedForeground }]}>{tr('focus.withYou')}</Text>
+    </View>
+  );
+}
 
 const RING_SIZE = 260;
 const STROKE = 18;
@@ -28,7 +52,23 @@ export default function FocusScreen() {
   useT();
   const insets = useSafeAreaInsets();
   const { taskId, tiny, left } = useLocalSearchParams<{ taskId?: string; tiny?: string; left?: string }>();
-  const { dayTasks, toggleDayTask, extendTask, logTime, treats, addDayTask, nextFreeStart } = useDayflow();
+  const { dayTasks, toggleDayTask, extendTask, logTime, treats, addDayTask, nextFreeStart, saveRoutine } = useDayflow();
+  const { isPro, offerPro } = usePro();
+  const [steps, setSteps] = useState<AiStep[] | null>(null);
+  const [breaking, setBreaking] = useState(false);
+  const breakItDown = async () => {
+    if (!task || breaking) return;
+    if (!isPro && !(await offerPro(tr('ai.proTitle'), tr('ai.proBody'), 'ai'))) return;
+    setBreaking(true);
+    try {
+      const r = await aiBreakDown(task.title, task.duration);
+      setSteps(r.steps);
+    } catch (e) {
+      Alert.alert(tr(`ai.error_${e instanceof AiError ? e.code : 'unavailable'}`));
+    } finally {
+      setBreaking(false);
+    }
+  };
   const [treat, setTreat] = useState<Treat | null>(null);
   const task = dayTasks.find((t) => t.id === taskId);
   const fullSeconds = (task?.duration ?? 25) * 60;
@@ -129,8 +169,21 @@ export default function FocusScreen() {
         <Text style={[styles.topLabel, { color: colors.foreground }]}>
           {phase === 'tiny' ? tr('focus.labelTiny') : tr('focus.labelFocus')}
         </Text>
-        <View style={{ width: 24 }} />
+        {task ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={tr('focus.editA11y')}
+            hitSlop={12}
+            onPress={() => router.push({ pathname: '/add-task', params: { id: task.id } })}
+            testID="focus-edit"
+          >
+            <Feather name="edit-2" size={20} color={colors.foreground} />
+          </Pressable>
+        ) : (
+          <View style={{ width: 24 }} />
+        )}
       </View>
+      {phase === 'tiny' || phase === 'full' || phase === 'idle' ? <FocusSounds running={running} ink={ink} /> : null}
 
       <View style={styles.center}>
         <View style={[styles.taskIcon, { backgroundColor: colors.card }]}>
@@ -215,6 +268,12 @@ export default function FocusScreen() {
                   <Feather name="play" size={16} color={colors.foreground} />
                   <Text style={[styles.secondaryText, { color: colors.foreground }]}>{tr('focus.full', { count: Math.round(fullSeconds / 60) })}</Text>
                 </Pressable>
+                {task && aiAvailable() ? (
+                  <Pressable accessibilityRole="button" onPress={() => void breakItDown()} testID="ai-breakdown" style={styles.secondary}>
+                    <Feather name={breaking ? 'loader' : 'zap'} size={16} color={colors.foreground} />
+                    <Text style={[styles.secondaryText, { color: colors.foreground }]}>{breaking ? tr('ai.thinking') : tr('ai.breakDown')}</Text>
+                  </Pressable>
+                ) : null}
               </>
             ) : (
               <>
@@ -248,7 +307,31 @@ export default function FocusScreen() {
         )}
       </View>
 
-      <Text style={[styles.footer, { color: colors.mutedForeground }]}>{tr('focus.footer')}</Text>
+      {running ? <BodyDouble /> : <Text style={[styles.footer, { color: colors.mutedForeground }]}>{tr('focus.footer')}</Text>}
+
+      <BuddyDialog
+        visible={!!steps}
+        mood="happy"
+        title={tr('ai.stepsTitle')}
+        message={steps?.map((st, i) => `${i + 1}. ${st.title} · ${tr('common.minutes', { count: st.minutes })}`).join('\n')}
+        onClose={() => setSteps(null)}
+      >
+        <DialogButton label={tr('ai.startFirst')} testID="ai-steps-start" onPress={() => {
+          setSteps(null);
+          begin('tiny', TINY_SECONDS);
+        }} />
+        <DialogButton
+          label={tr('ai.saveRoutine')}
+          variant="secondary"
+          testID="ai-steps-routine"
+          onPress={() => {
+            if (task && steps) {
+              saveRoutine({ title: task.title, subtitle: tr('ai.routineSub'), tone: task.tone, icon: task.icon, steps: steps.map((st) => ({ title: st.title, duration: st.minutes })) });
+            }
+            setSteps(null);
+          }}
+        />
+      </BuddyDialog>
 
       <BuddyDialog
         visible={!!treat}
@@ -276,6 +359,8 @@ export default function FocusScreen() {
 }
 
 const styles = StyleSheet.create({
+  bodyDouble: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bodyDoubleText: { fontSize: 13, fontWeight: '600' },
   screen: { flex: 1, paddingHorizontal: 24, justifyContent: 'space-between' },
   topBar: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   topLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1.6 },

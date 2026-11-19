@@ -119,7 +119,7 @@ export default function OnboardingScreen() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.replace('/(tabs)');
     // Offer Pro once, after the user lands on Today. Closable; never blocks the app.
-    setTimeout(() => void showPaywall(), 600);
+    setTimeout(() => void showPaywall('onboarding'), 600);
   };
 
   return (
