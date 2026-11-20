@@ -1,0 +1,14 @@
+"Add to Dayflow" = "Add to Dayflow";
+"Save a thought to your Dayflow Inbox before it slips away." = "Save a thought to your Dayflow Inbox before it slips away.";
+"Thought" = "Thought";
+"What should I add?" = "What should I add?";
+"Nothing to add." = "Nothing to add.";
+"Added to your Dayflow Inbox." = "Added to your Dayflow Inbox.";
+"What's next in Dayflow" = "What's next in Dayflow";
+"Hear what you're doing now and what's coming up." = "Hear what you're doing now and what's coming up.";
+"Nothing else planned. Enjoy the free time." = "Nothing else planned. Enjoy the free time.";
+"Add to Inbox" = "Add to Inbox";
+"What's next" = "What's next";
+"dialog.now" = "Now: %@, %d minutes left.";
+"dialog.nextAfter" = "Next: %@ at %@.";
+"dialog.nextUp" = "Next up: %@ at %@.";

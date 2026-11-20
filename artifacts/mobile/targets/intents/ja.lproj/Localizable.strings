@@ -1,0 +1,14 @@
+"Add to Dayflow" = "Dayflowに追加";
+"Save a thought to your Dayflow Inbox before it slips away." = "忘れる前に、思いついたことをDayflowのインボックスに保存。";
+"Thought" = "メモ";
+"What should I add?" = "何を追加しますか?";
+"Nothing to add." = "追加する内容がありません。";
+"Added to your Dayflow Inbox." = "Dayflowのインボックスに追加しました。";
+"What's next in Dayflow" = "Dayflowの次の予定";
+"Hear what you're doing now and what's coming up." = "今やっていることと次の予定を聞く。";
+"Nothing else planned. Enjoy the free time." = "ほかに予定はありません。自由な時間を楽しんでね。";
+"Add to Inbox" = "インボックスに追加";
+"What's next" = "次の予定";
+"dialog.now" = "今：%@、あと%d分。";
+"dialog.nextAfter" = "次は%2$@から%1$@。";
+"dialog.nextUp" = "次は%2$@から%1$@。";

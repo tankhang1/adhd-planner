@@ -21,7 +21,8 @@ function TodayWidget({ current, next, later }: { current: WidgetTask | null; nex
   const bg = (main?.tone ?? '#FBFAFF') as HexColor;
   const ink = (main?.ink ?? '#1E9E62') as HexColor;
   const minsLeft = current ? Math.max(0, Math.ceil((current.end - Date.now() / 1000) / 60)) : 0;
-  const progress = current ? Math.min(1, (Date.now() / 1000 - current.start) / (current.end - current.start)) : 0;
+  const progress = current ? Math.min(1, Math.max(0, (Date.now() / 1000 - current.start) / (current.end - current.start))) : 0;
+  const filled = Math.min(100, Math.max(1, Math.round(progress * 100)));
 
   return (
     <FlexWidget
@@ -37,13 +38,30 @@ function TodayWidget({ current, next, later }: { current: WidgetTask | null; nex
           style={{ fontSize: 17, fontWeight: '700', color: INK, marginTop: 4 }}
         />
         <TextWidget
-          text={current ? tr('widget.minLeft', { count: minsLeft }) : main ? tr('widget.at', { time: hhmm(main.start) }) : tr('widget.enjoy')}
+          text={
+            current
+              ? `${tr('widget.minLeft', { count: minsLeft })} · ${tr('widget.until', { time: hhmm(current.end) })}`
+              : main ? tr('widget.at', { time: hhmm(main.start) }) : tr('widget.enjoy')
+          }
           style={{ fontSize: 13, color: MUTED, marginTop: 4 }}
         />
         {current ? (
-          <FlexWidget style={{ marginTop: 10, height: 6, width: 'match_parent', backgroundColor: '#FFFFFFB3', borderRadius: 3, flexDirection: 'row' }}>
-            <FlexWidget style={{ height: 6, flex: Math.max(0.01, progress), backgroundColor: ink, borderRadius: 3 }} />
-            <FlexWidget style={{ height: 6, flex: Math.max(0.01, 1 - progress) }} />
+          // Integer weights: the widget renderer ignores fractional flex values.
+          <FlexWidget style={{ marginTop: 10, height: 8, width: 'match_parent', backgroundColor: '#FFFFFFCC', borderRadius: 4, flexDirection: 'row' }}>
+            <FlexWidget style={{ height: 8, flex: filled, backgroundColor: ink, borderRadius: 4 }} />
+            {filled < 100 ? <FlexWidget style={{ height: 8, flex: 100 - filled }} /> : null}
+          </FlexWidget>
+        ) : null}
+        {/* Free plan has no "Later" column: show what's next here so the widget isn't half empty. */}
+        {!later.length && current && next ? (
+          <FlexWidget style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
+            <FlexWidget style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: next.ink as HexColor, marginRight: 8 }} />
+            <TextWidget
+              text={`${tr('widget.nextTask', { title: next.title })} · ${hhmm(next.start)}`}
+              maxLines={1}
+              truncate="END"
+              style={{ fontSize: 12, fontWeight: '600', color: INK }}
+            />
           </FlexWidget>
         ) : null}
       </FlexWidget>

@@ -562,6 +562,7 @@ const ja: Dictionary = {
     nothingElse: 'ほかに予定はありません',
     enjoy: '自由な時間を楽しんで',
     minLeft: '残り{{count}}分',
+    until: "{{time}}まで",
     at: '{{time}}から',
     later: 'このあと',
     timesUp: '時間です・{{title}}',

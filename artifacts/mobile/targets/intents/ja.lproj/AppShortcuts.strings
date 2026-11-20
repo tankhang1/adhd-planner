@@ -1,0 +1,6 @@
+"Add to ${applicationName}" = "${applicationName}に追加";
+"Add a thought to ${applicationName}" = "${applicationName}にメモを追加";
+"Brain dump in ${applicationName}" = "${applicationName}に書き出す";
+"What's next in ${applicationName}" = "${applicationName}の次の予定";
+"What should I do now in ${applicationName}" = "${applicationName}で今なにをする";
+"Check my ${applicationName}" = "${applicationName}を確認";

@@ -1,0 +1,14 @@
+"Add to Dayflow" = "Dayflow에 추가";
+"Save a thought to your Dayflow Inbox before it slips away." = "잊어버리기 전에 생각을 Dayflow 인박스에 저장해요.";
+"Thought" = "생각";
+"What should I add?" = "무엇을 추가할까요?";
+"Nothing to add." = "추가할 내용이 없어요.";
+"Added to your Dayflow Inbox." = "Dayflow 인박스에 추가했어요.";
+"What's next in Dayflow" = "Dayflow 다음 일정";
+"Hear what you're doing now and what's coming up." = "지금 하는 일과 다음 일정을 들어요.";
+"Nothing else planned. Enjoy the free time." = "다른 계획은 없어요. 자유 시간을 즐기세요.";
+"Add to Inbox" = "인박스에 추가";
+"What's next" = "다음 일정";
+"dialog.now" = "지금: %@, %d분 남았어요.";
+"dialog.nextAfter" = "다음: %2$@에 %1$@.";
+"dialog.nextUp" = "다음 일정: %2$@에 %1$@.";

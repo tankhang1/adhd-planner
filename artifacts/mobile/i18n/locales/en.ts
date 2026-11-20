@@ -563,6 +563,7 @@ const en = {
     nothingElse: 'Nothing else planned',
     enjoy: 'Enjoy the free time',
     minLeft: '{{count}} min left',
+    until: "until {{time}}",
     at: 'at {{time}}',
     later: 'LATER',
     timesUp: 'Time’s up · {{title}}',

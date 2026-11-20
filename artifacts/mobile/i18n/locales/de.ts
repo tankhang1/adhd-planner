@@ -562,6 +562,7 @@ const de: Dictionary = {
     nothingElse: 'Nichts mehr geplant',
     enjoy: 'Genieß die freie Zeit',
     minLeft: 'Noch {{count}} Min.',
+    until: "bis {{time}}",
     at: 'um {{time}}',
     later: 'SPÄTER',
     timesUp: 'Zeit ist um · {{title}}',

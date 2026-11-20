@@ -9,6 +9,8 @@ if (Platform.OS === 'android') {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { widgetTaskHandler } = require('./widgets/android');
     registerWidgetTaskHandler(widgetTaskHandler);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('./services/widgetRefresh').defineWidgetRefreshTask();
   } catch {
     // Native module missing (Expo Go) — widgets need a development build.
   }

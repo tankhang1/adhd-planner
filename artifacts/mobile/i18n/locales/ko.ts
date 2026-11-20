@@ -562,6 +562,7 @@ const ko: Dictionary = {
     nothingElse: '남은 일정이 없어요',
     enjoy: '자유 시간을 즐겨요',
     minLeft: '{{count}}분 남음',
+    until: "{{time}}까지",
     at: '{{time}}',
     later: '이후',
     timesUp: '시간 종료 · {{title}}',

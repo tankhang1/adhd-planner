@@ -19,6 +19,7 @@ import { DayflowProvider, toDateKey, useDayflow } from '@/context/DayflowContext
 import { ProProvider, usePro } from '@/context/ProContext';
 import { addReminderTapListener, syncReminders } from '@/services/reminders';
 import { drainPendingInbox, syncWidgets } from '@/services/widgets';
+import { registerWidgetRefresh } from '@/services/widgetRefresh';
 import { AnimatedSplash } from '@/components/AnimatedSplash';
 import { StatusBar } from 'expo-status-bar';
 import { useColors } from '@/hooks/useColors';
@@ -71,6 +72,11 @@ function AppEffects() {
       clearInterval(i);
     };
   }, [hydrated, dayTasks, liveActivityEnabled, isPro, language]);
+
+  // Android: keep the home-screen widget's countdown fresh while the app is closed.
+  useEffect(() => {
+    if (hydrated) void registerWidgetRefresh();
+  }, [hydrated]);
 
   // Siri / Shortcuts "Add to Dayflow": move thoughts saved while the app was closed into the Inbox.
   const addInboxRef = React.useRef(addInboxTask);

@@ -27,12 +27,16 @@ function Group({ title, children, footer }: { title: string; children: React.Rea
     <View style={styles.group}>
       <Text style={[styles.groupTitle, { color: colors.mutedForeground }]}>{title}</Text>
       <View style={[styles.groupCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {rows.map((child, i) => (
-          <View key={i}>
-            {i > 0 ? <View style={[styles.divider, { backgroundColor: colors.border }]} /> : null}
-            {child}
-          </View>
-        ))}
+        {rows.map((child, i) => {
+          // Controls that belong to the row above (marked `attached`) sit under it without a divider.
+          const attached = React.isValidElement(child) && (child.props as { attached?: boolean }).attached;
+          return (
+            <View key={i}>
+              {i > 0 && !attached ? <View style={[styles.divider, { backgroundColor: colors.border }]} /> : null}
+              {child}
+            </View>
+          );
+        })}
       </View>
       {footer ? <Text style={[styles.groupFooter, { color: colors.mutedForeground }]}>{footer}</Text> : null}
     </View>
@@ -85,6 +89,8 @@ function SwitchRow({ icon, title, hint, value, onChange, testID, badge }: { icon
         value={value}
         onValueChange={onChange}
         trackColor={{ true: colors.primary, false: colors.input }}
+        thumbColor={Platform.OS === 'android' ? '#FFFFFF' : undefined}
+        ios_backgroundColor={colors.input}
         accessibilityLabel={title}
         testID={testID}
       />
@@ -122,6 +128,11 @@ function Segmented<T extends string | number>({ options, value, onChange, label,
       })}
     </View>
   );
+}
+
+/** Extra controls for the row above it (no divider between them). */
+function Attached({ children }: { attached: true; children: React.ReactNode }) {
+  return <View style={styles.attached}>{children}</View>;
 }
 
 /** A labelled control that sits under its own heading inside a group. */
@@ -268,7 +279,8 @@ export default function SettingsScreen() {
           testID="toggle-reminders"
         />
         {remindersEnabled ? (
-          <Field icon="clock" title={t('settings.remindBefore')}>
+          <Attached attached>
+            <Text style={[styles.attachedLabel, { color: colors.mutedForeground }]}>{t('settings.remindBefore')}</Text>
             <Segmented
               label={t('settings.remindBefore')}
               value={reminderLead}
@@ -276,7 +288,7 @@ export default function SettingsScreen() {
               testIDPrefix="lead"
               options={REMINDER_LEADS.map((m) => ({ value: m, label: t('common.minutes', { count: m }) }))}
             />
-          </Field>
+          </Attached>
         ) : null}
         {remindersEnabled ? (
           <SwitchRow
@@ -289,19 +301,24 @@ export default function SettingsScreen() {
           />
         ) : null}
         {remindersEnabled && quietOn ? (
-          <View style={[styles.field, styles.steppers]}>
+          <Attached attached>
+          <View style={styles.steppers}>
             {([[t('settings.start'), quietStart, (v: number) => setQuietHours(v, quietEnd)], [t('settings.end'), quietEnd, (v: number) => setQuietHours(quietStart, v)]] as const).map(([label, value, setV]) => (
               <View key={label} style={[styles.stepper, { backgroundColor: colors.muted }]}>
                 <Pressable accessibilityLabel={t('settings.earlier', { label })} hitSlop={8} onPress={() => setV(((value ?? 0) - 30 + 1440) % 1440)}>
                   <Feather name="minus" size={16} color={colors.foreground} />
                 </Pressable>
-                <Text style={[styles.stepperText, { color: colors.foreground }]}>{label} {formatMinutes(value ?? 0)}</Text>
+                <Text style={[styles.stepperText, { color: colors.foreground }]} numberOfLines={1}>
+                  <Text style={[styles.stepperLabel, { color: colors.mutedForeground }]}>{label}  </Text>
+                  {formatMinutes(value ?? 0)}
+                </Text>
                 <Pressable accessibilityLabel={t('settings.later', { label })} hitSlop={8} onPress={() => setV(((value ?? 0) + 30) % 1440)}>
                   <Feather name="plus" size={16} color={colors.foreground} />
                 </Pressable>
               </View>
             ))}
           </View>
+          </Attached>
         ) : null}
       </Group>
 
@@ -423,9 +440,12 @@ const styles = StyleSheet.create({
   segmentItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, borderRadius: 10 },
   segmentRaised: { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   segmentText: { fontSize: 13, fontWeight: '700' },
-  steppers: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 0 },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, height: 38, borderRadius: 19 },
-  stepperText: { fontSize: 13, fontWeight: '700' },
+  steppers: { gap: 8 },
+  attached: { paddingHorizontal: 14, paddingBottom: 14, marginTop: -4, gap: 8, paddingLeft: 56 },
+  attachedLabel: { fontSize: 12, fontWeight: '600' },
+  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, height: 44, borderRadius: 14 },
+  stepperLabel: { fontSize: 13, fontWeight: '600' },
+  stepperText: { fontSize: 14, fontWeight: '800' },
 
   footer: { alignItems: 'center', gap: 6, paddingTop: 4 },
   footerLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },

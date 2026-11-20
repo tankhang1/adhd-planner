@@ -85,11 +85,13 @@ struct WhatsNextIntent: AppIntent {
     if let current = open.first(where: { $0.start <= now && $0.end > now }) {
       let left = max(1, Int(((current.end - now) / 60).rounded(.up)))
       let next = open.first(where: { $0.start >= current.end })
-      let tail = next.map { " Next: \($0.title) at \(timeString(Date(timeIntervalSince1970: $0.start)))." } ?? ""
-      return .result(dialog: "Now: \(current.title), \(left) minutes left.\(tail)")
+      let tail = next.map { " " + String(format: String(localized: "dialog.nextAfter"), $0.title, timeString(Date(timeIntervalSince1970: $0.start))) } ?? ""
+      let nowLine = String(format: String(localized: "dialog.now"), current.title, left)
+      return .result(dialog: IntentDialog(stringLiteral: nowLine + tail))
     }
     if let next = open.first(where: { $0.start > now }) {
-      return .result(dialog: "Next up: \(next.title) at \(timeString(Date(timeIntervalSince1970: next.start))).")
+      let line = String(format: String(localized: "dialog.nextUp"), next.title, timeString(Date(timeIntervalSince1970: next.start)))
+      return .result(dialog: IntentDialog(stringLiteral: line))
     }
     return .result(dialog: "Nothing else planned. Enjoy the free time.")
   }

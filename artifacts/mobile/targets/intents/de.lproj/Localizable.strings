@@ -1,0 +1,14 @@
+"Add to Dayflow" = "Zu Dayflow hinzufügen";
+"Save a thought to your Dayflow Inbox before it slips away." = "Halte einen Gedanken in deiner Dayflow-Inbox fest, bevor er weg ist.";
+"Thought" = "Gedanke";
+"What should I add?" = "Was soll ich hinzufügen?";
+"Nothing to add." = "Nichts hinzuzufügen.";
+"Added to your Dayflow Inbox." = "Zu deiner Dayflow-Inbox hinzugefügt.";
+"What's next in Dayflow" = "Was steht in Dayflow an";
+"Hear what you're doing now and what's coming up." = "Hör, was du gerade machst und was als Nächstes kommt.";
+"Nothing else planned. Enjoy the free time." = "Nichts mehr geplant. Genieß die freie Zeit.";
+"Add to Inbox" = "Zur Inbox";
+"What's next" = "Was steht an";
+"dialog.now" = "Jetzt: %@, noch %d Minuten.";
+"dialog.nextAfter" = "Danach: %@ um %@.";
+"dialog.nextUp" = "Als Nächstes: %@ um %@.";
