@@ -34,7 +34,7 @@
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 3
+      "versionCode": 4
     },
     "web": {
       "favicon": "./assets/images/favicon.png",
@@ -137,7 +137,8 @@
         }
       ],
       "expo-background-task",
-      "./plugins/withOptionalScreenFeatures"
+      "./plugins/withOptionalScreenFeatures",
+      "./plugins/withoutUnusedAndroidServices"
     ],
     "experiments": {
       "typedRoutes": true,
